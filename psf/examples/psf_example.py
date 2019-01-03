@@ -3,7 +3,7 @@
 
 """Point Spread Function example.
 
-Demonstrates the use of the psf library for calculating point spread functions
+Demonstrate the use of the psf library for calculating point spread functions
 for fluorescence microscopy.
 
 """
@@ -46,25 +46,25 @@ def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
 
     if savebin:
         # save zr slices to BIN files
-        empsf.data.tofile("empsf.bin")
-        expsf.data.tofile("expsf.bin")
-        gauss.data.tofile("gauss.bin")
-        obsvol.data.tofile("obsvol.bin")
+        empsf.data.tofile('empsf.bin')
+        expsf.data.tofile('expsf.bin')
+        gauss.data.tofile('gauss.bin')
+        obsvol.data.tofile('obsvol.bin')
 
     if savetif:
         # save zr slices to TIFF files
-        imsave("empsf.tif", empsf.data)
-        imsave("expsf.tif", expsf.data)
-        imsave("gauss.tif", gauss.data)
-        imsave("obsvol.tif", obsvol.data)
+        imsave('empsf.tif', empsf.data)
+        imsave('expsf.tif', expsf.data)
+        imsave('gauss.tif', gauss.data)
+        imsave('obsvol.tif', obsvol.data)
 
     if savevol:
         # save xyz volumes to files.
         # Attention: requires 32 GB for 512x512x512
-        imsave("empsf_vol.tif", empsf.volume())
-        imsave("expsf_vol.tif", expsf.volume())
-        imsave("gauss_vol.tif", gauss.volume())
-        imsave("obsvol_vol.tif", obsvol.volume())
+        imsave('empsf_vol.tif', empsf.volume())
+        imsave('expsf_vol.tif', expsf.volume())
+        imsave('gauss_vol.tif', gauss.volume())
+        imsave('obsvol_vol.tif', obsvol.volume())
 
     if not plot:
         return
