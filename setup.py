@@ -29,7 +29,9 @@ if 'sdist' in sys.argv:
         fh.write(license)
     with open('README.rst', 'w') as fh:
         fh.write(readme)
-
+    numpy_required = '1.11.3'
+else:
+    numpy_required = numpy.__version__
 
 setup(
     name='psf',
@@ -40,7 +42,7 @@ setup(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=1.11.3'],
+    install_requires=['numpy>=%s' % numpy_required],
     packages=['psf'],
     ext_modules=[Extension('psf._psf', ['psf/psf.c'],
                            include_dirs=[numpy.get_include()])],
@@ -58,7 +60,6 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
