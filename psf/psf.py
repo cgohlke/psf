@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # psf.py
 
-# Copyright (c) 2007-2018, Christoph Gohlke and Oliver Holub
-# Copyright (c) 2007-2018, The Regents of the University of California
+# Copyright (c) 2007-2019, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics
 # All rights reserved.
 #
@@ -44,7 +44,7 @@ This library is no longer actively developed.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.18
+:Version: 2019.1.1
 
 Requirements
 ------------
@@ -52,6 +52,11 @@ Requirements
 * `Numpy 1.14 <https://www.numpy.org>`_
 * `Matplotlib 2.2 <https://www.matplotlib.org>`_  (optional for plotting)
 * A Python distutils compatible C compiler  (build)
+
+Revisions
+---------
+2019.1.1
+    Update copyright year.
 
 References
 ----------
@@ -96,7 +101,7 @@ array([ 1.     ,  0.51071,  0.04397])
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.18'
+__version__ = '2019.1.1'
 __docformat__ = 'restructuredtext en'
 __all__ = ('PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
            'imshow',
@@ -594,7 +599,7 @@ def uv2zr(uv, wavelength, sinalpha, refr_index, magnification=1.0):
     Examples
     --------
     >>> numpy.allclose(uv2zr((1, 1), 488, 0.9, 1.33),
-    ...               (72.094692498695736, 64.885223248826165))
+    ...                (72.094692498695736, 64.885223248826165))
     True
 
     """
@@ -611,7 +616,7 @@ def zr2uv(zr, wavelength, sinalpha, refr_index, magnification=1.0):
     Examples
     --------
     >>> numpy.allclose(zr2uv((1e3, 1e3), 488, 0.9, 1.33),
-    ...               (13.870646580788051, 15.411829534208946))
+    ...                (13.870646580788051, 15.411829534208946))
     True
 
     """
