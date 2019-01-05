@@ -13,7 +13,7 @@ This library is no longer actively developed.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.18
+:Version: 2019.1.1
 
 Requirements
 ------------
@@ -21,6 +21,11 @@ Requirements
 * `Numpy 1.14 <https://www.numpy.org>`_
 * `Matplotlib 2.2 <https://www.matplotlib.org>`_  (optional for plotting)
 * A Python distutils compatible C compiler  (build)
+
+Revisions
+---------
+2019.1.1
+    Update copyright year.
 
 References
 ----------
