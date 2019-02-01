@@ -110,7 +110,8 @@ def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
     pyplot.plot(r, expsf[0] - gauss2[0], 'r-', label=expsf.name + ' (r)')
     pyplot.plot(r, obsvol[0] - gauss[0], 'b-', label=obsvol.name + ' (r)')
     pyplot.plot(z, expsf[:, 0] - gauss2[:, 0], 'm-', label=expsf.name + ' (z)')
-    pyplot.plot(z, obsvol[:, 0] - gauss[:, 0], 'c-', label=obsvol.name+ ' (z)')
+    pyplot.plot(z, obsvol[:, 0] - gauss[:, 0], 'c-',
+                label=obsvol.name + ' (z)')
     pyplot.axis([0, zr_max, -0.1, 0.1])
     pyplot.tight_layout()
 
