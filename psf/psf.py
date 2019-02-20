@@ -44,7 +44,9 @@ This library is no longer actively developed.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:License: 3-clause BSD
+
+:Version: 2019.2.20
 
 Requirements
 ------------
@@ -97,16 +99,18 @@ array([ 1.     ,  0.51071,  0.04397])
 >>> # save a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
 
+Refer to the psf_example.py file in the source distribution for more.
+
 """
 
 from __future__ import division, print_function
 
-__version__ = '2019.1.1'
+__version__ = '2019.2.20'
 __docformat__ = 'restructuredtext en'
 __all__ = ('PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
-           'imshow',
-           'ANISOTROPIC','ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ', 'EXCITATION',
-           'EMISSION', 'WIDEFIELD', 'CONFOCAL', 'TWOPHOTON', 'PARAXIAL')
+           'imshow', 'ANISOTROPIC', 'ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ',
+           'EXCITATION', 'EMISSION', 'WIDEFIELD', 'CONFOCAL', 'TWOPHOTON',
+           'PARAXIAL')
 
 import sys
 import math
@@ -117,7 +121,7 @@ import numpy
 
 try:
     from . import _psf
-except ImportError:
+except (ImportError, ValueError):
     import _psf
 
 ANISOTROPIC = 1
@@ -256,13 +260,13 @@ class PSF(object):
         self.expsf = expsf
         self.empsf = empsf
 
-        if (not (psftype & EXCITATION)) and (em_wavelen is None):
+        if not (psftype & EXCITATION) and em_wavelen is None:
             raise ValueError('emission wavelength not specified')
 
-        if (not (psftype & EMISSION)) and (ex_wavelen is None):
+        if not (psftype & EMISSION) and ex_wavelen is None:
             raise ValueError('excitation wavelength not specified')
 
-        if (psftype & CONFOCAL) and (pinhole_radius is None):
+        if psftype & CONFOCAL and pinhole_radius is None:
             raise ValueError('pinhole radius not specified')
 
         self.sinalpha = self.num_aperture / self.refr_index
@@ -361,7 +365,7 @@ class PSF(object):
                 for a, t in threads:
                     t.join()
                     setattr(self, a, t.psf)
-                if not (self.expsf.iscompatible(self.empsf)):
+                if not self.expsf.iscompatible(self.empsf):
                     raise ValueError(
                         'Excitation and Emission PSF not compatible')
                 if psftype & WIDEFIELD or (self.pinhole.radius.um > 9.76 *
