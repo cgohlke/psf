@@ -34,7 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Point Spread Function calculations for fluorescence microscopy.
 
-Psf.c is a Python C extension module to provide low level implementations
+Psf.c is a Python C extension module that provides low level implementations
 for the psf package.
 
 Refer to the psf.py module for a high level API, documentation, and tests.
@@ -46,11 +46,13 @@ Refer to the psf.py module for a high level API, documentation, and tests.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:License: 3-clause BSD
+
+:Version: 2019.2.20
 
 */
 
-#define _VERSION_ "2019.1.1"
+#define _VERSION_ "2019.2.20"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -195,14 +197,14 @@ int gaussian2d(double *out, Py_ssize_t* shape, double* sigma)
     Py_ssize_t z, r;
     double sz, sr, t;
 
-    if ((out == NULL) || (sigma[0] == 0) || (sigma[1] == 0))
+    if ((out == NULL) || (sigma[0] == 0.0) || (sigma[1] == 0.0))
         return -1;
 
     sz = -0.5 / (sigma[0]*sigma[0]);
     sr = -0.5 / (sigma[1]*sigma[1]);
 
     for (z = 0; z < shape[0]; z++) {
-        t = z*z * sz;
+        t = (double)z * (double)z * sz;
         for (r = 0; r < shape[1]; r++) {
             *out++ = exp(t + r*r*sr);
         }
@@ -331,9 +333,10 @@ int psf(
 
     delta = alpha / (double)(intsteps-1);
 
-    cache = cptr = (double *)malloc((intsteps*5)*sizeof(double));
-    if (cache == NULL)
+    cptr = (double *)malloc((intsteps*5)*sizeof(double));
+    if (cptr == NULL)
         return -1;
+    cache = cptr;
 
     const0 = gamma / sinalpha;
     const1 = gamma / (sinalpha * sinalpha);
