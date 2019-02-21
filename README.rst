@@ -13,7 +13,9 @@ This library is no longer actively developed.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:License: 3-clause BSD
+
+:Version: 2019.2.20
 
 Requirements
 ------------
@@ -65,3 +67,5 @@ array([ 1.     ,  0.51071,  0.04397])
 >>> obsvol.slice(0).tofile('_test_slice.bin')
 >>> # save a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
+
+Refer to the psf_example.py file in the source distribution for more.
