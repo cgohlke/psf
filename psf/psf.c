@@ -48,11 +48,11 @@ Refer to the psf.py module for a high level API, documentation, and tests.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.20
+:Version: 2019.4.22
 
 */
 
-#define _VERSION_ "2019.2.20"
+#define _VERSION_ "2019.4.22"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -63,6 +63,10 @@ Refer to the psf.py module for a high level API, documentation, and tests.
 #include "string.h"
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
+
+#if defined(_MSC_VER) && (_MSC_VER < 1600) && defined(_WIN64)
+#define llabs _abs64
+#endif
 
 #ifndef M_PI
 #define M_PI (3.1415926535897932384626433832795)
@@ -535,8 +539,13 @@ int obsvol(
                 sum = 0.0;
                 i = 1-dimd + (_dimd-dimd);
                 for (x = r-dimd+1; x < MIN(r+dimd, dimr); x++) {
+#if (SIZEOF_SIZE_T == 4)
                     xx = abs(x) * dimd;
                     ii = abs(i++) * _dimd;
+#else
+                    xx = llabs(x) * dimd;
+                    ii = llabs(i++) * _dimd;
+#endif
                     for (y = 0; y < dimd; y++) {
                         sum += _em[xx++] * detector[ii++];
                     }
