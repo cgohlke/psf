@@ -15,17 +15,20 @@ This library is no longer actively developed.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.20
+:Version: 2019.4.22
 
 Requirements
 ------------
 * `CPython 2.7 or 3.5+ <https://www.python.org>`_
-* `Numpy 1.14 <https://www.numpy.org>`_
+* `Numpy 1.11 <https://www.numpy.org>`_
 * `Matplotlib 2.2 <https://www.matplotlib.org>`_  (optional for plotting)
 * A Python distutils compatible C compiler  (build)
 
 Revisions
 ---------
+2019.4.22
+    Fix setup requirements.
+    Fix compiler warning.
 2019.1.1
     Update copyright year.
 
