@@ -11,8 +11,6 @@ for fluorescence microscopy.
 import numpy
 from matplotlib import pyplot
 
-from tifffile import imsave
-
 import psf
 
 
@@ -53,14 +51,17 @@ def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
 
     if savetif:
         # save zr slices to TIFF files
+        from tifffile import imsave
+
         imsave('empsf.tif', empsf.data)
         imsave('expsf.tif', expsf.data)
         imsave('gauss.tif', gauss.data)
         imsave('obsvol.tif', obsvol.data)
 
     if savevol:
-        # save xyz volumes to files.
-        # Attention: requires 32 GB for 512x512x512
+        # save xyz volumes to files. Requires 32 GB for 512x512x512
+        from tifffile import imsave
+
         imsave('empsf_vol.tif', empsf.volume())
         imsave('expsf_vol.tif', expsf.volume())
         imsave('gauss_vol.tif', gauss.volume())
