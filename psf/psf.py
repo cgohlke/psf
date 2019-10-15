@@ -46,7 +46,7 @@ This library is no longer actively developed.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.22
+:Version: 2019.10.14
 
 Requirements
 ------------
@@ -57,6 +57,8 @@ Requirements
 
 Revisions
 ---------
+2019.10.14
+    Support Python 3.8.
 2019.4.22
     Fix setup requirements.
     Fix compiler warning.
@@ -108,7 +110,7 @@ Refer to the psf_example.py file in the source distribution for more.
 
 from __future__ import division, print_function
 
-__version__ = '2019.4.22'
+__version__ = '2019.10.14'
 __docformat__ = 'restructuredtext en'
 __all__ = ('PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
            'imshow', 'ANISOTROPIC', 'ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ',
@@ -287,12 +289,18 @@ class PSF(object):
             au = (1.22 * self.ex_wavelen / self.num_aperture)
             ou = zr2uv(self.dims.um, self.ex_wavelen, self.sinalpha,
                        self.refr_index, 1.0)
-        self.dims.update(ou=ou, au=(self.dims.um[0]/au, self.dims.um[1]/au))
+        self.dims.update(ou=ou,
+                         au=(self.dims.um[0] / au, self.dims.um[1] / au))
 
         if pinhole_radius:
             self.pinhole = Pinhole(pinhole_radius, self.dims, pinhole_shape)
 
-        start = time.clock()
+        try:
+            clock = time.perf_counter
+        except AttributeError:
+            clock = time.clock
+
+        start = clock()
         if psftype & GAUSSIAN:
             self.sigma = Dimensions(**self.dims)
             if self.underfilling != 1.0:
@@ -314,7 +322,7 @@ class PSF(object):
                 radius = 0.0
             elif psftype & CONFOCAL:
                 radius = self.pinhole.radius.um
-                if radius > 9.76 * self.ex_wavelen/self.num_aperture:
+                if radius > 9.76 * self.ex_wavelen / self.num_aperture:
                     # use widefield approximation for pinholes > 8 AU
                     widefield = True
                     lex = lem = self.ex_wavelen
@@ -382,7 +390,7 @@ class PSF(object):
 
         if psftype & TWOPHOTON:
             self.data *= self.data
-        self.time = float(time.clock()-start) * 1e3
+        self.time = float(clock() - start) * 1e3
 
     def __getitem__(self, key):
         """Return value of data array at position."""
@@ -442,7 +450,8 @@ class PSF(object):
     def imshow(self, subplot=111, **kwargs):
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
-        aspect = self.shape[1]/self.shape[0] * self.dims.um[0]/self.dims.um[1]
+        aspect = (self.shape[1] / self.shape[0] *
+                  self.dims.um[0] / self.dims.um[1])
         kwargs.update(dict(data=self.data, title=title, subplot=subplot,
                            aspect=aspect))
         return imshow(**kwargs)
@@ -553,9 +562,9 @@ class Dimensions(dict):
         dim = self[unit]
         new = self[newunit]
         try:
-            return value * (new/dim)
+            return value * (new / dim)
         except TypeError:
-            return tuple(v*(o/u) for v, u, o in zip(value, dim, new))
+            return tuple(v * (o / u) for v, u, o in zip(value, dim, new))
 
     def __setitem__(self, unit, value):
         """Add a dimension or rescale all dimensions to new value."""
@@ -569,10 +578,10 @@ class Dimensions(dict):
                 for k, v in self.items():
                     dict.__setitem__(self, k, v * scale)
             except TypeError:
-                scale = tuple(v/d for v, d in zip(value, dim))
+                scale = tuple(v / d for v, d in zip(value, dim))
                 for k, v in self.items():
                     dict.__setitem__(
-                        self, k, tuple(v*s for v, s in zip(self[k], scale)))
+                        self, k, tuple(v * s for v, s in zip(self[k], scale)))
 
     def __getattr__(self, unit):
         """Return value of unit."""
@@ -612,7 +621,7 @@ def uv2zr(uv, wavelength, sinalpha, refr_index, magnification=1.0):
     """
     a = wavelength / (2.0 * math.pi * sinalpha * refr_index * magnification)
     b = a / (sinalpha * magnification)
-    return uv[0]*b, uv[1]*a
+    return uv[0] * b, uv[1] * a
 
 
 def zr2uv(zr, wavelength, sinalpha, refr_index, magnification=1.0):
@@ -629,7 +638,7 @@ def zr2uv(zr, wavelength, sinalpha, refr_index, magnification=1.0):
     """
     a = (2.0 * math.pi * refr_index * sinalpha * magnification) / wavelength
     b = a * sinalpha * magnification
-    return zr[0]*b, zr[1]*a
+    return zr[0] * b, zr[1] * a
 
 
 def mirror_symmetry(data):
@@ -654,13 +663,13 @@ def mirror_symmetry(data):
 
     """
     data = numpy.array(data)
-    result = numpy.empty([2*i-1 for i in data.shape], numpy.float64)
+    result = numpy.empty([2 * i - 1 for i in data.shape], numpy.float64)
     if data.ndim == 1:
         x = data.shape[0] - 1
         result[x:] = data
         result[:x] = data[-1:0:-1]
     elif data.ndim == 2:
-        x, y = (i-1 for i in data.shape)
+        x, y = (i - 1 for i in data.shape)
         result[x:, y:] = data
         result[:x, y:] = data[-1:0:-1, :]
         result[:, :y] = result[:, -1:y:-1]
