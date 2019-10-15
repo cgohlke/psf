@@ -15,7 +15,7 @@ This library is no longer actively developed.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.22
+:Version: 2019.10.14
 
 Requirements
 ------------
@@ -26,6 +26,8 @@ Requirements
 
 Revisions
 ---------
+2019.10.14
+    Support Python 3.8.
 2019.4.22
     Fix setup requirements.
     Fix compiler warning.
