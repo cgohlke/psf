@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # psf_example.py
 
 """Point Spread Function example.
