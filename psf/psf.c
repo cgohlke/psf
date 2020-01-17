@@ -1,9 +1,7 @@
 /* psf.c */
 
 /*
-Copyright (c) 2007-2019, Christoph Gohlke
-Copyright (c) 2007-2019, The Regents of the University of California
-Produced at the Laboratory for Fluorescence Dynamics
+Copyright (c) 2007-2020, Christoph Gohlke
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -46,13 +44,13 @@ Refer to the psf.py module for a high level API, documentation, and tests.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.4.22
+:Version: 2010.1.1
 
 */
 
-#define _VERSION_ "2019.4.22"
+#define _VERSION_ "2010.1.1"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -1207,8 +1205,6 @@ static PyMethodDef module_methods[] = {
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
-#if PY_MAJOR_VERSION >= 3
-
 struct module_state {
     PyObject *error;
 };
@@ -1226,29 +1222,19 @@ static int module_clear(PyObject *m) {
 }
 
 static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        "_psf",
-        NULL,
-        sizeof(struct module_state),
-        module_methods,
-        NULL,
-        module_traverse,
-        module_clear,
-        NULL
+    PyModuleDef_HEAD_INIT,
+    "_psf",
+    NULL,
+    sizeof(struct module_state),
+    module_methods,
+    NULL,
+    module_traverse,
+    module_clear,
+    NULL
 };
-
-#define INITERROR return NULL
 
 PyMODINIT_FUNC
 PyInit__psf(void)
-
-#else
-
-#define INITERROR return
-
-PyMODINIT_FUNC
-init_psf(void)
-#endif
 {
     PyObject *module;
 
@@ -1256,29 +1242,21 @@ init_psf(void)
     PyOS_snprintf(doc, sizeof(module_doc) + sizeof(_VERSION_),
                   module_doc, _VERSION_);
 
-#if PY_MAJOR_VERSION >= 3
     moduledef.m_doc = doc;
     module = PyModule_Create(&moduledef);
-#else
-    module = Py_InitModule3("_psf", module_methods, doc);
-#endif
 
     PyMem_Free(doc);
 
     if (module == NULL)
-        INITERROR;
+        return NULL;
 
     if (_import_array() < 0) {
         Py_DECREF(module);
-        INITERROR;
+        return NULL;
     }
 
     {
-#if PY_MAJOR_VERSION < 3
-    PyObject *s = PyString_FromString(_VERSION_);
-#else
     PyObject *s = PyUnicode_FromString(_VERSION_);
-#endif
     PyObject *dict = PyModule_GetDict(module);
     PyDict_SetItemString(dict, "__version__", s);
     Py_DECREF(s);
@@ -1287,10 +1265,8 @@ init_psf(void)
     if (bessel_init() != 0) {
         PyErr_Format(PyExc_ValueError, "bessel_init function failed");
         Py_DECREF(module);
-        INITERROR;
+        return NULL;
     }
 
-#if PY_MAJOR_VERSION >= 3
     return module;
-#endif
 }
