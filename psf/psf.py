@@ -1,27 +1,26 @@
-# -*- coding: utf-8 -*-
 # psf.py
 
-# Copyright (c) 2007-2019, Christoph Gohlke and Oliver Holub
-# Copyright (c) 2007-2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics
+# Copyright (c) 2007-2020, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright
-#   notice, this list of conditions and the following disclaimer.
-# * Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-# * Neither the name of the copyright holders nor the names of any
-#   contributors may be used to endorse or promote products derived
-#   from this software without specific prior written permission.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
 # LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
 # CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
 # SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
@@ -44,48 +43,48 @@ This library is no longer actively developed.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.10.14
+:Version: 2020.1.1
 
 Requirements
 ------------
-* `CPython 2.7 or 3.5+ <https://www.python.org>`_
-* `Numpy 1.11 <https://www.numpy.org>`_
-* `Matplotlib 2.2 <https://www.matplotlib.org>`_  (optional for plotting)
-* A Python distutils compatible C compiler  (build)
+* `CPython >= 3.6 <https://www.python.org>`_
+* `Numpy 1.14 <https://www.numpy.org>`_
+* `Matplotlib 3.1 <https://www.matplotlib.org>`_  (optional for plotting)
 
 Revisions
 ---------
+2020.1.1
+    Remove support for Python 2.7 and 3.5.
+    Update copyright.
 2019.10.14
     Support Python 3.8.
 2019.4.22
     Fix setup requirements.
     Fix compiler warning.
-2019.1.1
-    Update copyright year.
 
 References
 ----------
-(1) Electromagnetic diffraction in optical systems. II. Structure of the
-    image field in an aplanatic system.
-    B Richards and E Wolf. Proc R Soc Lond A, 253 (1274), 358-379, 1959.
-(2) Focal volume optics and experimental artifacts in confocal fluorescence
-    correlation spectroscopy.
-    S T Hess, W W Webb. Biophys J (83) 2300-17, 2002.
-(3) Electromagnetic description of image formation in confocal fluorescence
-    microscopy.
-    T D Viser, S H Wiersma. J Opt Soc Am A (11) 599-608, 1994.
-(4) Photon counting histogram: one-photon excitation.
-    B Huang, T D Perroud, R N Zare. Chem Phys Chem (5), 1523-31, 2004.
-    Supporting information: Calculation of the observation volume profile.
-(5) Gaussian approximations of fluorescence microscope point-spread function
-    models.
-    B Zhang, J Zerubia, J C Olivo-Marin. Appl. Optics (46) 1819-29, 2007.
-(6) The SVI-wiki on 3D microscopy, deconvolution, visualization and analysis.
-    https://svi.nl/NyquistRate
-(7) Theory of Confocal Microscopy: Resolution and Contrast in Confocal
-    Microscopy. http://www.olympusfluoview.com/theory/resolutionintro.html
+1. Electromagnetic diffraction in optical systems. II. Structure of the
+   image field in an aplanatic system.
+   B Richards and E Wolf. Proc R Soc Lond A, 253 (1274), 358-379, 1959.
+2. Focal volume optics and experimental artifacts in confocal fluorescence
+   correlation spectroscopy.
+   S T Hess, W W Webb. Biophys J (83) 2300-17, 2002.
+3. Electromagnetic description of image formation in confocal fluorescence
+   microscopy.
+   T D Viser, S H Wiersma. J Opt Soc Am A (11) 599-608, 1994.
+4. Photon counting histogram: one-photon excitation.
+   B Huang, T D Perroud, R N Zare. Chem Phys Chem (5), 1523-31, 2004.
+   Supporting information: Calculation of the observation volume profile.
+5. Gaussian approximations of fluorescence microscope point-spread function
+   models.
+   B Zhang, J Zerubia, J C Olivo-Marin. Appl. Optics (46) 1819-29, 2007.
+6. The SVI-wiki on 3D microscopy, deconvolution, visualization and analysis.
+   https://svi.nl/NyquistRate
+7. Theory of Confocal Microscopy: Resolution and Contrast in Confocal
+   Microscopy. http://www.olympusfluoview.com/theory/resolutionintro.html
 
 Examples
 --------
@@ -94,30 +93,42 @@ Examples
 ...             num_aperture=1.2, refr_index=1.333,
 ...             pinhole_radius=0.55, pinhole_shape='round')
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
->>> print('%.5f, %.5f' % obsvol.sigma.ou)
+>>> print(f'{obsvol.sigma.ou[0]:.5f}, {obsvol.sigma.ou[1]:.5f}')
 2.58832, 1.37059
 >>> obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)
+>>> print(obsvol, end='')  # doctest:+ELLIPSIS
+PSF
+ Confocal, Isotropic
+ shape: (32, 32) pixel
+ dimensions: (4.00, 4.00) um, (55.64, 61.80) ou, (8.06, 8.06) au
+ excitation wavelength: 488.0 nm
+ emission wavelength: 520.0 nm
+ numeric aperture: 1.20
+ refractive index: 1.33
+ half cone angle: 64.19 deg
+ magnification: 1.00
+ underfilling: 1.00
+ pinhole radius: 0.550 um, 8.498 ou, 1.1086 au, 4.40 px
+ computing time: ... ms
 >>> obsvol[0, :3]
-array([ 1.     ,  0.51071,  0.04397])
+array([1.     , 0.51071, 0.04397])
 >>> # save the image plane to file
 >>> obsvol.slice(0).tofile('_test_slice.bin')
 >>> # save a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
 
-Refer to the psf_example.py file in the source distribution for more.
+Refer to the psf_example.py file in the source distribution for more examples.
 
 """
 
-from __future__ import division, print_function
+__version__ = '2020.1.1'
 
-__version__ = '2019.10.14'
-__docformat__ = 'restructuredtext en'
-__all__ = ('PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
-           'imshow', 'ANISOTROPIC', 'ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ',
-           'EXCITATION', 'EMISSION', 'WIDEFIELD', 'CONFOCAL', 'TWOPHOTON',
-           'PARAXIAL')
+__all__ = (
+    'PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
+    'imshow', 'ANISOTROPIC', 'ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ',
+    'EXCITATION', 'EMISSION', 'WIDEFIELD', 'CONFOCAL', 'TWOPHOTON', 'PARAXIAL'
+)
 
-import sys
 import math
 import time
 import threading
@@ -126,7 +137,7 @@ import numpy
 
 try:
     from . import _psf
-except (ImportError, ValueError):
+except ImportError:
     import _psf
 
 ANISOTROPIC = 1
@@ -141,7 +152,7 @@ TWOPHOTON = 256
 PARAXIAL = 512
 
 
-class PSF(object):
+class PSF:
     """Calculate point spread function of various types.
 
     Attributes
@@ -200,7 +211,8 @@ class PSF(object):
     Gaussian-Lorentzian approximation (GAUSSLORENTZ) are not implemented.
 
     """
-    psftypes = {
+
+    TYPES = {
         ISOTROPIC | EXCITATION: 'Excitation, Isotropic',
         ISOTROPIC | EMISSION: 'Emission, Isotropic',
         ISOTROPIC | WIDEFIELD: 'Widefield, Isotropic',
@@ -243,10 +255,10 @@ class PSF(object):
 
         """
         try:
-            self.name = self.psftypes[psftype]
+            self.name = PSF.TYPES[psftype]
             self.psftype = psftype
-        except Exception:
-            raise ValueError('PSF type is invalid or not supported')
+        except Exception as exc:
+            raise ValueError('PSF type is invalid or not supported') from exc
 
         if name:
             self.name = str(name)
@@ -277,9 +289,9 @@ class PSF(object):
         self.sinalpha = self.num_aperture / self.refr_index
         if self.sinalpha >= 1.0:
             raise ValueError(
-                'quotient of the numeric aperture (%.1f) and '
-                'refractive index (%.1f) is greater than 1.0 (%.2f)' % (
-                    self.num_aperture, self.refr_index, self.sinalpha))
+                f'quotient of the numeric aperture ({self.num_aperture:.1f}) '
+                f'and refractive index ({self.refr_index:.1f}) is greater '
+                f'than 1.0 ({self.sinalpha:.2f})')
 
         if psftype & EMISSION:
             au = (1.22 * self.em_wavelen / self.num_aperture)
@@ -398,41 +410,44 @@ class PSF(object):
 
     def __str__(self):
         '''Return properties of PSF object as string.'''
-        s = [self.name]
-        s.append('  Shape: (%i, %i) pixel' % self.dims.px)
-        s.append('  Dimensions: %s' % self.dims.format(
-            ['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f']))
+        s = [self.__class__.__name__, self.name]
+        s.append(f'shape: ({self.dims.px[0]}, {self.dims.px[1]}) pixel')
+        dims = self.dims.format(['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f'])
+        s.append(f'dimensions: {dims}')
         if self.ex_wavelen:
             s.append(
-                '  Excitation Wavelength: %.1f nm' % (self.ex_wavelen * 1e3))
+                f'excitation wavelength: {self.ex_wavelen * 1e3:.1f} nm')
         if self.em_wavelen:
-            s.append(
-                '  Emission Wavelength: %.1f nm' % (self.em_wavelen * 1e3))
-        s.append('  Numeric Aperture: %.2f' % self.num_aperture)
-        s.append('  Refractive Index: %.2f' % self.refr_index)
-        s.append('  Half Cone Angle: %.2f deg' % math.degrees(
-            math.asin(self.sinalpha)))
+            s.append(f'emission wavelength: {self.em_wavelen * 1e3:.1f} nm')
+        s.append(f'numeric aperture: {self.num_aperture:.2f}')
+        s.append(f'refractive index: {self.refr_index:.2f}')
+        angle = math.degrees(math.asin(self.sinalpha))
+        s.append(f'half cone angle: {angle:.2f} deg')
         if self.magnification:
-            s.append('  Magnification: %.2f' % self.magnification)
+            s.append(f'magnification: {self.magnification:.2f}')
         if self.underfilling:
-            s.append('  Underfilling: %.2f' % self.underfilling)
+            s.append(f'underfilling: {self.underfilling:.2f}')
         if self.pinhole:
-            s.append('  Pinhole Radius: %s' % self.pinhole.radius.format(
-                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.4f', '%.2f']))
+            pinhole = self.pinhole.radius.format(
+                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.4f', '%.2f'])
+            s.append(f'pinhole radius: {pinhole}')
         if self.sigma:
-            s.append('  Gauss Sigma: %s' % self.sigma.format(
-                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.3f', '%.2f']))
-        s.append('  Computing Time: %.2f ms\n' % self.time)
-        return '\n'.join(s)
+            sigma = self.sigma.format(
+                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.3f', '%.2f'])
+            s.append(f'gauss sigma: {sigma}')
+        s.append(f'computing time: {self.time:.2f} ms\n')
+        return '\n '.join(s)
 
     def iscompatible(self, other):
         """Return True if objects match dimensions and optical properties."""
-        return ((self.dims.px[0] == other.dims.px[0])
-                and (self.dims.px[1] == other.dims.px[1])
-                and (self.dims.um[0] == other.dims.um[0])
-                and (self.dims.um[1] == other.dims.um[1])
-                and (self.num_aperture == other.num_aperture)
-                and (self.refr_index == other.refr_index))
+        return (
+            (self.dims.px[0] == other.dims.px[0]) and
+            (self.dims.px[1] == other.dims.px[1]) and
+            (self.dims.um[0] == other.dims.um[0]) and
+            (self.dims.um[1] == other.dims.um[1]) and
+            (self.num_aperture == other.num_aperture) and
+            (self.refr_index == other.refr_index)
+        )
 
     def slice(self, key=slice(None)):
         """Return a z slice of the PSF with rotational symmetries applied."""
@@ -450,10 +465,10 @@ class PSF(object):
     def imshow(self, subplot=111, **kwargs):
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
-        aspect = (self.shape[1] / self.shape[0] *
-                  self.dims.um[0] / self.dims.um[1])
-        kwargs.update(dict(data=self.data, title=title, subplot=subplot,
-                           aspect=aspect))
+        aspect = (
+            self.shape[1] / self.shape[0] * self.dims.um[0] / self.dims.um[1])
+        kwargs.update(
+            dict(data=self.data, title=title, subplot=subplot, aspect=aspect))
         return imshow(**kwargs)
 
 
@@ -470,7 +485,7 @@ class PSFthread(threading.Thread):
         self.psf = PSF(*self.args, **self.kwargs)
 
 
-class Pinhole(object):
+class Pinhole:
     """Pinhole object for confocal microscopy.
 
     Attributes
@@ -484,15 +499,16 @@ class Pinhole(object):
     Examples
     --------
     >>> ph = Pinhole(0.1, dict(px=16, um=1.0), 'round')
-    >>> print('%.5f' % ph.radius.px)
+    >>> print(f'{ph.radius.px:.5f}')
     1.60000
     >>> ph.kernel()
-    array([[ 1.     ,  1.6    ,  0.6    ],
-           [ 0.8    ,  1.18579,  0.36393],
-           [ 0.3    ,  0.36393,  0.     ]])
+    array([[1.     , 1.6    , 0.6    ],
+           [0.8    , 1.18579, 0.36393],
+           [0.3    , 0.36393, 0.     ]])
 
     """
-    shapes = {'round': 0, 'square': 4}
+
+    SHAPES = {'round': 0, 'square': 4}
 
     def __init__(self, radius, dimensions, shape='round'):
         """Initialize the pinhole object.
@@ -508,10 +524,10 @@ class Pinhole(object):
             Shape of the pinhole. Either 'round' (default) or 'square'.
 
         """
-        self._corners = self.shapes[shape]
+        self._corners = Pinhole.SHAPES[shape]
         self.shape = shape
         try:
-            dimensions = dict((k, v[1]) for k, v in dimensions.items())
+            dimensions = {k: v[1] for k, v in dimensions.items()}
         except TypeError:
             pass
         self.radius = Dimensions(**dimensions)
@@ -519,8 +535,11 @@ class Pinhole(object):
         self._kernel = None
 
     def __str__(self):
-        s = [self.shape, '  Radius: %s' % str(self.radius)]
-        return '\n'.join(s)
+        return '\n '.join((
+            self.__class__.__name__,
+            f'shape: {self.shape}',
+            f'radius: {self.radius}',
+        ))
 
     def kernel(self):
         """Return convolution kernel for integration over the pinhole."""
@@ -555,7 +574,8 @@ class Dimensions(dict):
     (0.5, 1.0)
 
     """
-    __slots__ = []
+
+    __slots__ = ()
 
     def __call__(self, value, unit, newunit):
         """Return value given in unit in another unit."""
@@ -596,14 +616,15 @@ class Dimensions(dict):
         s = []
         try:
             for k, f in zip(keys, formatstr):
-                s.append('%s %s' % (f % self[k], k))
+                f = f % self[k]
+                s.append(f'{f} {k}')
         except TypeError:
             for k, f in zip(keys, formatstr):
                 v = self[k]
                 t = []
                 for i in v:
                     t.append(f % i)
-                s.append('(%s) %s' % (', '.join(t), k))
+                s.append('({}) {}'.format(', '.join(t), k))
         return ', '.join(s)
 
 
@@ -651,15 +672,15 @@ def mirror_symmetry(data):
     Examples
     --------
     >>> mirror_symmetry([0, 1])
-    array([ 1.,  0.,  1.])
+    array([1., 0., 1.])
     >>> mirror_symmetry([[0, 1],[0, 1]])
-    array([[ 1.,  0.,  1.],
-           [ 1.,  0.,  1.],
-           [ 1.,  0.,  1.]])
+    array([[1., 0., 1.],
+           [1., 0., 1.],
+           [1., 0., 1.]])
     >>> mirror_symmetry([[[0, 1],[0, 1]], [[0, 1],[0, 1]], [[0, 1],[0, 1]]])[0]
-    array([[ 1.,  0.,  1.],
-           [ 1.,  0.,  1.],
-           [ 1.,  0.,  1.]])
+    array([[1., 0., 1.],
+           [1., 0., 1.],
+           [1., 0., 1.]])
 
     """
     data = numpy.array(data)
@@ -680,8 +701,8 @@ def mirror_symmetry(data):
         result[:, :y, z:] = result[:, -1:y:-1, z:]
         result[:, :, :z] = result[:, :, -1:z:-1]
     else:
-        raise NotImplementedError('%i-dimensional arrays not supported' %
-                                  data.ndim)
+        raise NotImplementedError(
+            f'{data.ndim}-dimensional arrays not supported')
     return result
 
 
@@ -692,10 +713,7 @@ def imshow(subplot, data, title=None, sharex=None, sharey=None,
     Mirror symmetry is applied along the x and y axes.
 
     """
-    try:
-        pyplot = sys.modules['matplotlib.pyplot']
-    except KeyError:
-        from matplotlib import pyplot
+    from matplotlib import pyplot
 
     ax = pyplot.subplot(subplot, sharex=sharex, sharey=sharey, facecolor='k')
     if title:
@@ -720,8 +738,6 @@ def imshow(subplot, data, title=None, sharex=None, sharey=None,
 
 if __name__ == '__main__':
     import doctest
-    try:
-        numpy.set_printoptions(suppress=True, precision=5, legacy='1.13')
-    except TypeError:
-        numpy.set_printoptions(suppress=True, precision=5)
+
+    numpy.set_printoptions(suppress=True, precision=5)
     doctest.testmod()
