@@ -13,13 +13,18 @@ from matplotlib import pyplot
 import psf
 
 
-def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
-                plot=True, **kwargs):
+def psf_example(
+    cmap='hot',
+    savebin=False,
+    savetif=False,
+    savevol=False,
+    plot=True,
+    **kwargs,
+):
     """Calculate, save, and plot various point spread functions."""
-
     args = {
         'shape': (512, 512),  # number of samples in z and r direction
-        'dims': (5.0, 5.0),   # size in z and r direction in micrometers
+        'dims': (5.0, 5.0),  # size in z and r direction in micrometers
         'ex_wavelen': 488.0,  # excitation wavelength in nanometers
         'em_wavelen': 520.0,  # emission wavelength in nanometers
         'num_aperture': 1.2,
@@ -71,10 +76,12 @@ def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
 
     # Log-plot xy, and rz slices
     pyplot.rc('font', family='sans-serif', weight='normal')
-    pyplot.figure(dpi=96, figsize=(9.5, 5.0), frameon=True,
-                  facecolor='w', edgecolor='w')
-    pyplot.subplots_adjust(bottom=0.02, top=0.92, left=0.02, right=0.98,
-                           hspace=0.01, wspace=0.01)
+    pyplot.figure(
+        dpi=96, figsize=(9.5, 5.0), frameon=True, facecolor='w', edgecolor='w'
+    )
+    pyplot.subplots_adjust(
+        bottom=0.02, top=0.92, left=0.02, right=0.98, hspace=0.01, wspace=0.01
+    )
 
     ax = expsf.imshow(241, cmap=cmap)[0]
     empsf.imshow(242, sharex=ax, sharey=ax, cmap=cmap)
@@ -110,8 +117,9 @@ def psf_example(cmap='hot', savebin=False, savetif=False, savevol=False,
     pyplot.plot(r, expsf[0] - gauss2[0], 'r-', label=expsf.name + ' (r)')
     pyplot.plot(r, obsvol[0] - gauss[0], 'b-', label=obsvol.name + ' (r)')
     pyplot.plot(z, expsf[:, 0] - gauss2[:, 0], 'm-', label=expsf.name + ' (z)')
-    pyplot.plot(z, obsvol[:, 0] - gauss[:, 0], 'c-',
-                label=obsvol.name + ' (z)')
+    pyplot.plot(
+        z, obsvol[:, 0] - gauss[:, 0], 'c-', label=obsvol.name + ' (z)'
+    )
     pyplot.axis([0, zr_max, -0.1, 0.1])
     pyplot.tight_layout()
 
