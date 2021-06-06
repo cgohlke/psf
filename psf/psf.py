@@ -1,6 +1,6 @@
 # psf.py
 
-# Copyright (c) 2007-2020, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2021, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -45,16 +45,18 @@ This library is no longer actively developed.
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.1
+:Version: 2021.6.6
 
 Requirements
 ------------
-* `CPython >= 3.6 <https://www.python.org>`_
-* `Numpy 1.14 <https://www.numpy.org>`_
-* `Matplotlib 3.1 <https://www.matplotlib.org>`_  (optional for plotting)
+* `CPython >= 3.7 <https://www.python.org>`_
+* `Numpy 1.15 <https://www.numpy.org>`_
+* `Matplotlib 3.3 <https://www.matplotlib.org>`_  (optional for plotting)
 
 Revisions
 ---------
+2021.6.6
+    Remove support for Python 3.6 (NEP 29).
 2020.1.1
     Remove support for Python 2.7 and 3.5.
     Update copyright.
@@ -121,12 +123,26 @@ Refer to the psf_example.py file in the source distribution for more examples.
 
 """
 
-__version__ = '2020.1.1'
+__version__ = '2021.6.6'
 
 __all__ = (
-    'PSF', 'Pinhole', 'Dimensions', 'uv2zr', 'zr2uv', 'mirror_symmetry',
-    'imshow', 'ANISOTROPIC', 'ISOTROPIC', 'GAUSSIAN', 'GAUSSLORENTZ',
-    'EXCITATION', 'EMISSION', 'WIDEFIELD', 'CONFOCAL', 'TWOPHOTON', 'PARAXIAL'
+    'PSF',
+    'Pinhole',
+    'Dimensions',
+    'uv2zr',
+    'zr2uv',
+    'mirror_symmetry',
+    'imshow',
+    'ANISOTROPIC',
+    'ISOTROPIC',
+    'GAUSSIAN',
+    'GAUSSLORENTZ',
+    'EXCITATION',
+    'EMISSION',
+    'WIDEFIELD',
+    'CONFOCAL',
+    'TWOPHOTON',
+    'PARAXIAL',
 )
 
 import math
@@ -230,11 +246,23 @@ class PSF:
         GAUSSIAN | TWOPHOTON | PARAXIAL: 'Two-Photon, Gaussian, Paraxial',
     }
 
-    def __init__(self, psftype, shape=(256, 256), dims=(4., 4.),
-                 ex_wavelen=None, em_wavelen=None, num_aperture=1.2,
-                 refr_index=1.333, magnification=1.0, underfilling=1.0,
-                 pinhole_radius=None, pinhole_shape='round',
-                 expsf=None, empsf=None, name=None):
+    def __init__(
+        self,
+        psftype,
+        shape=(256, 256),
+        dims=(4.0, 4.0),
+        ex_wavelen=None,
+        em_wavelen=None,
+        num_aperture=1.2,
+        refr_index=1.333,
+        magnification=1.0,
+        underfilling=1.0,
+        pinhole_radius=None,
+        pinhole_shape='round',
+        expsf=None,
+        empsf=None,
+        name=None,
+    ):
         """Initialize the PSF object.
 
         Arguments
@@ -291,18 +319,30 @@ class PSF:
             raise ValueError(
                 f'quotient of the numeric aperture ({self.num_aperture:.1f}) '
                 f'and refractive index ({self.refr_index:.1f}) is greater '
-                f'than 1.0 ({self.sinalpha:.2f})')
+                f'than 1.0 ({self.sinalpha:.2f})'
+            )
 
         if psftype & EMISSION:
-            au = (1.22 * self.em_wavelen / self.num_aperture)
-            ou = zr2uv(self.dims.um, self.em_wavelen, self.sinalpha,
-                       self.refr_index, self.magnification)
+            au = 1.22 * self.em_wavelen / self.num_aperture
+            ou = zr2uv(
+                self.dims.um,
+                self.em_wavelen,
+                self.sinalpha,
+                self.refr_index,
+                self.magnification,
+            )
         else:
-            au = (1.22 * self.ex_wavelen / self.num_aperture)
-            ou = zr2uv(self.dims.um, self.ex_wavelen, self.sinalpha,
-                       self.refr_index, 1.0)
-        self.dims.update(ou=ou,
-                         au=(self.dims.um[0] / au, self.dims.um[1] / au))
+            au = 1.22 * self.ex_wavelen / self.num_aperture
+            ou = zr2uv(
+                self.dims.um,
+                self.ex_wavelen,
+                self.sinalpha,
+                self.refr_index,
+                1.0,
+            )
+        self.dims.update(
+            ou=ou, au=(self.dims.um[0] / au, self.dims.um[1] / au)
+        )
 
         if pinhole_radius:
             self.pinhole = Pinhole(pinhole_radius, self.dims, pinhole_shape)
@@ -317,7 +357,8 @@ class PSF:
             self.sigma = Dimensions(**self.dims)
             if self.underfilling != 1.0:
                 raise NotImplementedError(
-                    'underfilling not supported in Gaussian approximation')
+                    'underfilling not supported in Gaussian approximation'
+                )
 
             if psftype & EXCITATION or psftype & TWOPHOTON:
                 widefield = True
@@ -344,45 +385,91 @@ class PSF:
                     lem = self.em_wavelen
                 if self.pinhole.shape != 'round':
                     raise NotImplementedError(
-                        'Gaussian approximation only valid for round pinhole')
+                        'Gaussian approximation only valid for round pinhole'
+                    )
 
             paraxial = bool(psftype & PARAXIAL)
-            self.sigma.um = _psf.gaussian_sigma(lex, lem, self.num_aperture,
-                                                self.refr_index, radius,
-                                                widefield, paraxial)
+            self.sigma.um = _psf.gaussian_sigma(
+                lex,
+                lem,
+                self.num_aperture,
+                self.refr_index,
+                radius,
+                widefield,
+                paraxial,
+            )
             self.data = _psf.gaussian2d(self.dims.px, self.sigma.px)
 
         elif psftype & ISOTROPIC:
             if psftype & EXCITATION or psftype & TWOPHOTON:
                 self.em_wavelen = None
                 self.magnification = None
-                self.data = _psf.psf(0, self.shape, self.dims.ou, 1.0,
-                                     self.sinalpha, self.underfilling, 1.0, 80)
+                self.data = _psf.psf(
+                    0,
+                    self.shape,
+                    self.dims.ou,
+                    1.0,
+                    self.sinalpha,
+                    self.underfilling,
+                    1.0,
+                    80,
+                )
             elif psftype & EMISSION:
                 self.ex_wavelen = None
                 self.underfilling = None
-                self.data = _psf.psf(1, self.shape, self.dims.ou,
-                                     self.magnification, self.sinalpha,
-                                     1.0, 1.0, 80)
+                self.data = _psf.psf(
+                    1,
+                    self.shape,
+                    self.dims.ou,
+                    self.magnification,
+                    self.sinalpha,
+                    1.0,
+                    1.0,
+                    80,
+                )
             elif psftype & CONFOCAL or psftype & WIDEFIELD:
                 if em_wavelen < ex_wavelen:
                     raise ValueError('Excitation > Emission wavelength')
                 # start threads to calculate excitation and emission PSF
                 threads = []
-                if not (self.expsf and
-                        self.expsf.psftype == ISOTROPIC | EXCITATION):
-                    threads.append((
-                        'expsf',
-                        PSFthread(ISOTROPIC | EXCITATION,
-                                  shape, dims, ex_wavelen, None, num_aperture,
-                                  refr_index, 1.0, underfilling)))
-                if not (self.empsf and
-                        self.empsf.psftype == ISOTROPIC | EMISSION):
-                    threads.append((
-                        'empsf',
-                        PSFthread(ISOTROPIC | EMISSION,
-                                  shape, dims, None, em_wavelen, num_aperture,
-                                  refr_index, magnification, 1.0)))
+                if not (
+                    self.expsf and self.expsf.psftype == ISOTROPIC | EXCITATION
+                ):
+                    threads.append(
+                        (
+                            'expsf',
+                            PSFthread(
+                                ISOTROPIC | EXCITATION,
+                                shape,
+                                dims,
+                                ex_wavelen,
+                                None,
+                                num_aperture,
+                                refr_index,
+                                1.0,
+                                underfilling,
+                            ),
+                        )
+                    )
+                if not (
+                    self.empsf and self.empsf.psftype == ISOTROPIC | EMISSION
+                ):
+                    threads.append(
+                        (
+                            'empsf',
+                            PSFthread(
+                                ISOTROPIC | EMISSION,
+                                shape,
+                                dims,
+                                None,
+                                em_wavelen,
+                                num_aperture,
+                                refr_index,
+                                magnification,
+                                1.0,
+                            ),
+                        )
+                    )
                 for a, t in threads:
                     t.start()
                 for a, t in threads:
@@ -390,15 +477,18 @@ class PSF:
                     setattr(self, a, t.psf)
                 if not self.expsf.iscompatible(self.empsf):
                     raise ValueError(
-                        'Excitation and Emission PSF not compatible')
-                if psftype & WIDEFIELD or (self.pinhole.radius.um > 9.76 *
-                                           self.ex_wavelen / self.num_aperture
-                                           ):
+                        'Excitation and Emission PSF not compatible'
+                    )
+                if psftype & WIDEFIELD or (
+                    self.pinhole.radius.um
+                    > 9.76 * self.ex_wavelen / self.num_aperture
+                ):
                     # use widefield approximation for pinholes > 8 AU
                     self.data = _psf.obsvol(self.expsf.data, self.empsf.data)
                 else:
-                    self.data = _psf.obsvol(self.expsf.data, self.empsf.data,
-                                            self.pinhole.kernel())
+                    self.data = _psf.obsvol(
+                        self.expsf.data, self.empsf.data, self.pinhole.kernel()
+                    )
 
         if psftype & TWOPHOTON:
             self.data *= self.data
@@ -409,14 +499,13 @@ class PSF:
         return self.data[key]
 
     def __str__(self):
-        '''Return properties of PSF object as string.'''
+        """Return properties of PSF object as string."""
         s = [self.__class__.__name__, self.name]
         s.append(f'shape: ({self.dims.px[0]}, {self.dims.px[1]}) pixel')
         dims = self.dims.format(['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f'])
         s.append(f'dimensions: {dims}')
         if self.ex_wavelen:
-            s.append(
-                f'excitation wavelength: {self.ex_wavelen * 1e3:.1f} nm')
+            s.append(f'excitation wavelength: {self.ex_wavelen * 1e3:.1f} nm')
         if self.em_wavelen:
             s.append(f'emission wavelength: {self.em_wavelen * 1e3:.1f} nm')
         s.append(f'numeric aperture: {self.num_aperture:.2f}')
@@ -429,11 +518,13 @@ class PSF:
             s.append(f'underfilling: {self.underfilling:.2f}')
         if self.pinhole:
             pinhole = self.pinhole.radius.format(
-                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.4f', '%.2f'])
+                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.4f', '%.2f']
+            )
             s.append(f'pinhole radius: {pinhole}')
         if self.sigma:
             sigma = self.sigma.format(
-                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.3f', '%.2f'])
+                ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.3f', '%.2f']
+            )
             s.append(f'gauss sigma: {sigma}')
         s.append(f'computing time: {self.time:.2f} ms\n')
         return '\n '.join(s)
@@ -441,12 +532,12 @@ class PSF:
     def iscompatible(self, other):
         """Return True if objects match dimensions and optical properties."""
         return (
-            (self.dims.px[0] == other.dims.px[0]) and
-            (self.dims.px[1] == other.dims.px[1]) and
-            (self.dims.um[0] == other.dims.um[0]) and
-            (self.dims.um[1] == other.dims.um[1]) and
-            (self.num_aperture == other.num_aperture) and
-            (self.refr_index == other.refr_index)
+            (self.dims.px[0] == other.dims.px[0])
+            and (self.dims.px[1] == other.dims.px[1])
+            and (self.dims.um[0] == other.dims.um[0])
+            and (self.dims.um[1] == other.dims.um[1])
+            and (self.num_aperture == other.num_aperture)
+            and (self.refr_index == other.refr_index)
         )
 
     def slice(self, key=slice(None)):
@@ -466,9 +557,11 @@ class PSF:
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
         aspect = (
-            self.shape[1] / self.shape[0] * self.dims.um[0] / self.dims.um[1])
+            self.shape[1] / self.shape[0] * self.dims.um[0] / self.dims.um[1]
+        )
         kwargs.update(
-            dict(data=self.data, title=title, subplot=subplot, aspect=aspect))
+            dict(data=self.data, title=title, subplot=subplot, aspect=aspect)
+        )
         return imshow(**kwargs)
 
 
@@ -535,11 +628,14 @@ class Pinhole:
         self._kernel = None
 
     def __str__(self):
-        return '\n '.join((
-            self.__class__.__name__,
-            f'shape: {self.shape}',
-            f'radius: {self.radius}',
-        ))
+        """Return string with information about Pinhole instance."""
+        return '\n '.join(
+            (
+                self.__class__.__name__,
+                f'shape: {self.shape}',
+                f'radius: {self.radius}',
+            )
+        )
 
     def kernel(self):
         """Return convolution kernel for integration over the pinhole."""
@@ -601,7 +697,8 @@ class Dimensions(dict):
                 scale = tuple(v / d for v, d in zip(value, dim))
                 for k, v in self.items():
                     dict.__setitem__(
-                        self, k, tuple(v * s for v, s in zip(self[k], scale)))
+                        self, k, tuple(v * s for v, s in zip(self[k], scale))
+                    )
 
     def __getattr__(self, unit):
         """Return value of unit."""
@@ -702,12 +799,23 @@ def mirror_symmetry(data):
         result[:, :, :z] = result[:, :, -1:z:-1]
     else:
         raise NotImplementedError(
-            f'{data.ndim}-dimensional arrays not supported')
+            f'{data.ndim}-dimensional arrays not supported'
+        )
     return result
 
 
-def imshow(subplot, data, title=None, sharex=None, sharey=None,
-           vmin=-2.5, vmax=0.0, cmap=None, interpolation='lanczos', **kwargs):
+def imshow(
+    subplot,
+    data,
+    title=None,
+    sharex=None,
+    sharey=None,
+    vmin=-2.5,
+    vmax=0.0,
+    cmap=None,
+    interpolation='lanczos',
+    **kwargs,
+):
     """Log-plot image using matplotlib.pyplot. Return plot axis and plot.
 
     Mirror symmetry is applied along the x and y axes.
@@ -729,9 +837,14 @@ def imshow(subplot, data, title=None, sharex=None, sharey=None,
     except AttributeError:
         pass
 
-    im = pyplot.imshow(mirror_symmetry(numpy.log10(data)),
-                       vmin=vmin, vmax=vmax, cmap=cmap,
-                       interpolation=interpolation, **kwargs)
+    im = pyplot.imshow(
+        mirror_symmetry(numpy.log10(data)),
+        vmin=vmin,
+        vmax=vmax,
+        cmap=cmap,
+        interpolation=interpolation,
+        **kwargs,
+    )
     pyplot.axis('off')
     return ax, im
 
