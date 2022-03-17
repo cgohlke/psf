@@ -55,21 +55,21 @@ def psf_example(
 
     if savetif:
         # save zr slices to TIFF files
-        from tifffile import imsave
+        from tifffile import imwrite
 
-        imsave('empsf.tif', empsf.data)
-        imsave('expsf.tif', expsf.data)
-        imsave('gauss.tif', gauss.data)
-        imsave('obsvol.tif', obsvol.data)
+        imwrite('empsf.tif', empsf.data)
+        imwrite('expsf.tif', expsf.data)
+        imwrite('gauss.tif', gauss.data)
+        imwrite('obsvol.tif', obsvol.data)
 
     if savevol:
         # save xyz volumes to files. Requires 32 GB for 512x512x512
-        from tifffile import imsave
+        from tifffile import imwrite
 
-        imsave('empsf_vol.tif', empsf.volume())
-        imsave('expsf_vol.tif', expsf.volume())
-        imsave('gauss_vol.tif', gauss.volume())
-        imsave('obsvol_vol.tif', obsvol.volume())
+        imwrite('empsf_vol.tif', empsf.volume())
+        imwrite('expsf_vol.tif', expsf.volume())
+        imwrite('gauss_vol.tif', gauss.volume())
+        imwrite('obsvol_vol.tif', obsvol.volume())
 
     if not plot:
         return
