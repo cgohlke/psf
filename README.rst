@@ -5,39 +5,52 @@ Psf is a Python library to calculate Point Spread Functions (PSF) for
 fluorescence microscopy.
 
 This library is no longer actively developed.
+Consider using the `pyotf <https://pypi.org/project/pyotf/>`_ package instead.
 
-:Authors:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_,
-  Oliver Holub
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
+:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_ and Oliver Holub
 :License: BSD 3-Clause
-
-:Version: 2021.6.6
+:Version: 2022.9.12
 
 Requirements
 ------------
-* `CPython >= 3.7 <https://www.python.org>`_
-* `Numpy 1.15 <https://www.numpy.org>`_
-* `Matplotlib 3.3 <https://www.matplotlib.org>`_  (optional for plotting)
+
+This release has been tested with the following requirements and dependencies
+(other versions may work):
+
+- `CPython 3.8.10, 3.9.13, 3.10.7, 3.11.0rc2 <https://www.python.org>`_
+- `NumPy 1.22.4 <https://pypi.org/project/numpy/>`_
+- `Matplotlib 3.5.3 <https://pypi.org/project/matplotlib/>`_
+  (optional for plotting)
 
 Revisions
 ---------
+
+2022.9.12
+
+- Remove support for Python 3.7 (NEP 29).
+- Update metadata.
+
 2021.6.6
-    Remove support for Python 3.6 (NEP 29).
+
+- Remove support for Python 3.6 (NEP 29).
+
 2020.1.1
-    Remove support for Python 2.7 and 3.5.
-    Update copyright.
+
+- Remove support for Python 2.7 and 3.5.
+- Update copyright.
+
 2019.10.14
-    Support Python 3.8.
+
+- Support Python 3.8.
+
 2019.4.22
-    Fix setup requirements.
-    Fix compiler warning.
+
+- Fix setup requirements.
+- Fix compiler warning.
 
 References
 ----------
+
 1. Electromagnetic diffraction in optical systems. II. Structure of the
    image field in an aplanatic system.
    B Richards and E Wolf. Proc R Soc Lond A, 253 (1274), 358-379, 1959.
@@ -60,10 +73,18 @@ References
 
 Examples
 --------
+
 >>> import psf
->>> args = dict(shape=(32, 32), dims=(4, 4), ex_wavelen=488, em_wavelen=520,
-...             num_aperture=1.2, refr_index=1.333,
-...             pinhole_radius=0.55, pinhole_shape='round')
+>>> args = dict(
+...     shape=(32, 32),
+...     dims=(4, 4),
+...     ex_wavelen=488,
+...     em_wavelen=520,
+...     num_aperture=1.2,
+...     refr_index=1.333,
+...     pinhole_radius=0.55,
+...     pinhole_shape='round'
+... )
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
 >>> print(f'{obsvol.sigma.ou[0]:.5f}, {obsvol.sigma.ou[1]:.5f}')
 2.58832, 1.37059
@@ -89,4 +110,4 @@ array([1.     , 0.51071, 0.04397])
 >>> # save a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
 
-Refer to the psf_example.py file in the source distribution for more examples.
+Refer to `psf_example.py` in the source distribution for more examples.
