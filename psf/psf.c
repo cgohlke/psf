@@ -1,22 +1,22 @@
 /* psf.c */
 
 /*
-Copyright (c) 2007-2021, Christoph Gohlke
+Copyright (c) 2007-2022, Christoph Gohlke
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
 
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
 
-* Neither the name of the copyright holder nor the names of its
-  contributors may be used to endorse or promote products derived from
-  this software without specific prior written permission.
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -30,27 +30,20 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/* Point Spread Function calculations for fluorescence microscopy.
+#define _DOC_ \
+"Point Spread Function calculations for fluorescence microscopy.\n\
+\n\
+Psf.c is a Python C extension module that provides low level implementations\n\
+for the psf package.\n\
+\n\
+Refer to the psf.py module for a high level API, documentation, and tests.\n\
+\n\
+:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_ and Oliver Holub\n\
+:License: BSD 3-Clause\n\
+:Version: 2022.9.12\n\
+"
 
-Psf.c is a Python C extension module that provides low level implementations
-for the psf package.
-
-Refer to the psf.py module for a high level API, documentation, and tests.
-
-:Authors:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_,
-  Oliver Holub
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2021.6.6
-
-*/
-
-#define _VERSION_ "2021.6.6"
+#define _VERSION_ "2022.9.12"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -1183,10 +1176,6 @@ static PyObject* py_gaussian_sigma(
 /*****************************************************************************/
 /* Python module */
 
-char module_doc[] =
-    "Python C extension module for calculating point spread functions.\n\n"
-    "Refer to the associated psf.py module for documentation.\n";
-
 static PyMethodDef module_methods[] = {
     {"psf", (PyCFunction)py_psf,
         METH_VARARGS|METH_KEYWORDS, py_psf_doc},
@@ -1238,17 +1227,17 @@ PyInit__psf(void)
 {
     PyObject *module;
 
-    char *doc = (char *)PyMem_Malloc(sizeof(module_doc) + sizeof(_VERSION_));
-    PyOS_snprintf(doc, sizeof(module_doc) + sizeof(_VERSION_),
-                  module_doc, _VERSION_);
+    char *doc = (char *)PyMem_Malloc(sizeof(_DOC_) + sizeof(_VERSION_));
+    PyOS_snprintf(doc, sizeof(_DOC_) + sizeof(_VERSION_), _DOC_, _VERSION_);
 
     moduledef.m_doc = doc;
     module = PyModule_Create(&moduledef);
 
     PyMem_Free(doc);
 
-    if (module == NULL)
+    if (module == NULL) {
         return NULL;
+    }
 
     if (_import_array() < 0) {
         Py_DECREF(module);
