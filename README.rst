@@ -9,7 +9,7 @@ Consider using the `pyotf <https://pypi.org/project/pyotf/>`_ package instead.
 
 :Authors: `Christoph Gohlke <https://www.cgohlke.com>`_ and Oliver Holub
 :License: BSD 3-Clause
-:Version: 2022.9.12
+:Version: 2022.9.26
 
 Requirements
 ------------
@@ -24,6 +24,10 @@ This release has been tested with the following requirements and dependencies
 
 Revisions
 ---------
+
+2022.9.26
+
+- Fix setup.py.
 
 2022.9.12
 
