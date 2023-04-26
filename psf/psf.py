@@ -1,6 +1,6 @@
 # psf.py
 
-# Copyright (c) 2007-2022, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2023, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -34,26 +34,46 @@
 Psf is a Python library to calculate Point Spread Functions (PSF) for
 fluorescence microscopy.
 
-This library is no longer actively developed.
-Consider using the `pyotf <https://pypi.org/project/pyotf/>`_ package instead.
+The psf library is no longer actively developed.
 
-:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_ and Oliver Holub
+:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2022.9.26
+:Version: 2023.4.26
+
+Quickstart
+----------
+
+Install the psf package and all dependencies from the
+`Python Package Index <https://pypi.org/project/psf/>`_::
+
+    python -m pip install -U psf[all]
+
+See `Examples`_ for using the programming interface.
+
+Source code and support are available on
+`GitHub <https://github.com/cgohlke/psf>`_.
 
 Requirements
 ------------
 
-This release has been tested with the following requirements and dependencies
+This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython 3.8.10, 3.9.13, 3.10.7, 3.11.0rc2 <https://www.python.org>`_
-- `NumPy 1.22.4 <https://pypi.org/project/numpy/>`_
-- `Matplotlib 3.5.3 <https://pypi.org/project/matplotlib/>`_
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.3
+- `NumPy <https://pypi.org/project/numpy/>`_ 1.23.5
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.7.1
   (optional for plotting)
 
 Revisions
 ---------
+
+2023.4.26
+
+- Use enums.
+- Derive Dimensions from UserDict.
+- Add type hints.
+- Convert to Google style docstrings.
+- Drop support for Python 3.8 and numpy < 1.21 (NEP29).
 
 2022.9.26
 
@@ -148,11 +168,15 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 """
 
-__version__ = '2022.9.26'
+from __future__ import annotations
+
+__version__ = '2023.4.26'
 
 __all__ = [
     'PSF',
+    'PsfType',
     'Pinhole',
+    'PinholeShape',
     'Dimensions',
     'uv2zr',
     'zr2uv',
@@ -173,6 +197,8 @@ __all__ = [
 import math
 import time
 import threading
+import enum
+from collections import UserDict
 
 import numpy
 
@@ -181,75 +207,96 @@ try:
 except ImportError:
     import _psf  # type: ignore
 
-ANISOTROPIC = 1
-ISOTROPIC = 2
-GAUSSIAN = 4
-GAUSSLORENTZ = 8
-EXCITATION = 16
-EMISSION = 32
-WIDEFIELD = 64
-CONFOCAL = 128
-TWOPHOTON = 256
-PARAXIAL = 512
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, TypeVar
+    from collections.abc import Iterable, Mapping
+    from numpy.typing import ArrayLike, NDArray
+
+    DimensionT = TypeVar('DimensionT')
+else:
+    DimensionT = None
+
+
+class PsfType(enum.IntFlag):
+    """Type of PSF defined by combining one model and one type."""
+
+    ANISOTROPIC = 1
+    """Anisotropic model (not implemented)."""
+    ISOTROPIC = 2
+    """Isotropic model."""
+    GAUSSIAN = 4
+    """Gaussian model."""
+    GAUSSLORENTZ = 8
+    """Gaussian Lorenzian model."""
+
+    EXCITATION = 16
+    """Excitation type."""
+    EMISSION = 32
+    """Emission type."""
+    WIDEFIELD = 64
+    """Widefield type."""
+    CONFOCAL = 128
+    """Confocal type."""
+    TWOPHOTON = 256
+    """Two-photon type."""
+
+    PARAXIAL = 512
+    """Border case for Gaussian approximations."""
+
+
+class PinholeShape(enum.IntEnum):
+    """Pinhole shapes."""
+
+    ROUND = 0
+    """Round pinhole."""
+    SQUARE = 4
+    """Square pinhole."""
+
+
+ANISOTROPIC = PsfType.ANISOTROPIC
+ISOTROPIC = PsfType.ISOTROPIC
+GAUSSIAN = PsfType.GAUSSIAN
+GAUSSLORENTZ = PsfType.GAUSSLORENTZ
+EXCITATION = PsfType.EXCITATION
+EMISSION = PsfType.EMISSION
+WIDEFIELD = PsfType.WIDEFIELD
+CONFOCAL = PsfType.CONFOCAL
+TWOPHOTON = PsfType.TWOPHOTON
+PARAXIAL = PsfType.PARAXIAL
 
 
 class PSF:
     """Calculate point spread function of various types.
 
-    Attributes
-    ----------
-    psftype : int
-        A combination of the following properties. Valid combinations are
-        listed in PSF.psftype.
+    Parameters:
+        psftype, shape, num_aperture, refr_index, magnification, underfilling,\
+        expsf, empsf, name:
+            See class attributes.
+        dims:
+            Dimensions of data array in *micrometers*.
+        ex_wavelen, em_wavelen:
+            Excitation or emission wavelengths in *nanometers* if applicable.
+        pinhole_radius:
+            Outer radius of pinhole in *micrometers* in object space.
+            This is the back-projected radius, i.e., the real physical radius
+            of the pinhole divided by the magnification of the system.
+        pinhole_shape:
+            Pinhole shape, round or square.
 
-        ANISOTROPIC or ISOTROPIC or GAUSSIAN or GAUSSLORENTZ
-            Specify calculation model.
-        EXCITATION or EMISSION or WIDEFIELD or CONFOCAL or TWOPHOTON
-            Specify type of PSF.
-        PARAXIAL
-            Border case for Gaussian approximations.
-    name : str
-        A human readable label.
-    data : 2D array of floats (C doubles)
-        PSF values in z,r space normalized to the value at the origin.
-    shape : sequence of int
-        Size of the data array in pixel. Default (256, 256)
-    dims : Dimension instance
-        Dimensions of the data array in px (pixel), um (micrometers),
-        ou (optical units), and au (airy units).
-    ex_wavelen and em_wavelen : float or None
-        Excitation or emission wavelengths in micrometers if applicable.
-    num_aperture : float
-        Numerical aperture (NA) of the objective. Default 1.2.
-    refr_index : float
-        Index of refraction of the sample medium. Default 1.333 (water).
-    magnification : float
-        Total magnification of the optical system. Default 1.0.
-    underfilling : float
-        Underfilling factor, i.e. the ratio of the radius of the objective
-        back aperture to the exp(-2) radius of the excitation laser.
-        Default 1.0.
-    sigma : Dimension instance or None
-        Gaussian sigma parameters in px (pixel), um (micrometers),
-        ou (optical units), and au (airy units) if applicable.
-    pinhole : Pinhole instance or None
-        Pinhole applies to confocal types only.
-    expsf, empsf : PSF instance or None
-        Excitation or Emission PSF objects if applicable (i.e. when calculated
-        intermediately for confocal)
+    Notes:
+        Calculations of the isotropic PSFs are based on the complex integration
+        representation for the diffraction near the image plane proposed by
+        Richards and Wolf [1-4].
 
-    Notes
-    -----
-    Calculations of the isotropic PSFs are based on the complex integration
-    representation for the diffraction near the image plane proposed by
-    Richards and Wolf [1-4].
+        Gaussian approximations are calculated according to [5].
 
-    Gaussian approximations are calculated according to [5].
+        Widefield calculations are used if the pinhole radius is larger than
+        ~8 au.
 
-    Widefield calculations are used if the pinhole radius is larger than ~8 au.
-
-    Models for polarized excitation or emission light (ANISOTROPIC) and the
-    Gaussian-Lorentzian approximation (GAUSSLORENTZ) are not implemented.
+        Models for polarized excitation or emission light (ANISOTROPIC) and the
+        Gaussian-Lorentzian approximation (GAUSSLORENTZ) are not implemented.
 
     """
 
@@ -271,47 +318,85 @@ class PSF:
         GAUSSIAN | TWOPHOTON | PARAXIAL: 'Two-Photon, Gaussian, Paraxial',
     }
 
+    psftype: PsfType
+    """Type of PSF."""
+
+    name: str
+    """Human readable label."""
+
+    data: NDArray[numpy.float64]
+    """PSF values in z,r space normalized to value at origin."""
+
+    shape: tuple[int, int]
+    """Size of data array in pixel."""
+
+    dims: Dimensions[tuple[float, float]]
+    """
+    Dimensions of data array in px (pixel), um (micrometers),
+    ou (optical units), and au (airy units).
+    """
+    ex_wavelen: float
+    """Excitation wavelength in micrometers if applicable."""
+
+    em_wavelen: float
+    """Emission wavelength in micrometers if applicable."""
+
+    num_aperture: float
+    """Numerical aperture (NA) of objective."""
+
+    refr_index: float
+    """Index of refraction of sample medium."""
+
+    magnification: float
+    """Total magnification of optical system."""
+
+    underfilling: float
+    """
+    Ratio of radius of objective back aperture to exp(-2) radius of
+    excitation laser.
+    """
+
+    sigma: Dimensions[tuple[float, float]] | None
+    """
+    Gaussian sigmas in px (pixel), um (micrometers), ou (optical units),
+    and au (airy units) if applicable.
+    """
+
+    pinhole: Pinhole | None
+    """Pinhole for confocal types."""
+
+    expsf: PSF | None
+    """Excitation PSF object for confocal types."""
+
+    empsf: PSF | None
+    """Emission PSF object for confocal types."""
+
     def __init__(
         self,
-        psftype,
-        shape=(256, 256),
-        dims=(4.0, 4.0),
-        ex_wavelen=None,
-        em_wavelen=None,
-        num_aperture=1.2,
-        refr_index=1.333,
-        magnification=1.0,
-        underfilling=1.0,
-        pinhole_radius=None,
-        pinhole_shape='round',
-        expsf=None,
-        empsf=None,
-        name=None,
+        psftype: PsfType,
+        /,
+        shape: tuple[int, int] = (256, 256),
+        dims: tuple[float, float] = (4.0, 4.0),
+        *,
+        ex_wavelen: float = math.nan,
+        em_wavelen: float = math.nan,
+        num_aperture: float = 1.2,
+        refr_index: float = 1.333,
+        magnification: float = 1.0,
+        underfilling: float = 1.0,
+        pinhole_radius: float | None = None,
+        pinhole_shape: PinholeShape | str = PinholeShape.ROUND,
+        expsf: PSF | None = None,
+        empsf: PSF | None = None,
+        name: str | None = None,
     ):
-        """Initialize the PSF object.
-
-        Arguments
-        ---------
-        psftype, shape, num_aperture, refr_index, magnification, underfilling,
-            expsf, and empsf:
-            See PSF attributes.
-        dims : sequence of float
-            Dimensions of the data array in *micrometers*. Default (4., 4.)
-        ex_wavelen and em_wavelen : float or None
-            Excitation or emission wavelengths in *nanometers* if applicable.
-        pinhole_radius : float or None
-            Outer radius of the pinhole in *micrometers* in the object space.
-            This is the back-projected radius, i.e. the real physical radius
-            of the pinhole divided by the magnification of the system.
-        pinhole_shape : str
-            Either 'round' (default) or 'square'.
-
-        """
         try:
             self.name = PSF.TYPES[psftype]
             self.psftype = psftype
         except Exception as exc:
-            raise ValueError('PSF type is invalid or not supported') from exc
+            raise ValueError(
+                f'PSF type {psftype!r} is invalid or not supported'
+            ) from exc
 
         if name:
             self.name = str(name)
@@ -319,8 +404,8 @@ class PSF:
         self.shape = int(shape[0]), int(shape[1])
         self.dims = Dimensions(px=shape, um=(float(dims[0]), float(dims[1])))
 
-        self.ex_wavelen = ex_wavelen / 1e3 if ex_wavelen else None
-        self.em_wavelen = em_wavelen / 1e3 if em_wavelen else None
+        self.ex_wavelen = ex_wavelen / 1e3
+        self.em_wavelen = em_wavelen / 1e3
         self.num_aperture = num_aperture
         self.refr_index = refr_index
         self.magnification = magnification
@@ -330,10 +415,10 @@ class PSF:
         self.expsf = expsf
         self.empsf = empsf
 
-        if not (psftype & EXCITATION) and em_wavelen is None:
+        if not (psftype & EXCITATION) and em_wavelen is math.nan:
             raise ValueError('emission wavelength not specified')
 
-        if not (psftype & EMISSION) and ex_wavelen is None:
+        if not (psftype & EMISSION) and ex_wavelen is math.nan:
             raise ValueError('excitation wavelength not specified')
 
         if psftype & CONFOCAL and pinhole_radius is None:
@@ -369,15 +454,12 @@ class PSF:
             ou=ou, au=(self.dims.um[0] / au, self.dims.um[1] / au)
         )
 
-        if pinhole_radius:
+        if pinhole_radius is not None:
             self.pinhole = Pinhole(pinhole_radius, self.dims, pinhole_shape)
 
-        try:
-            clock = time.perf_counter
-        except AttributeError:
-            clock = time.clock
-
+        clock = time.perf_counter
         start = clock()
+
         if psftype & GAUSSIAN:
             self.sigma = Dimensions(**self.dims)
             if self.underfilling != 1.0:
@@ -387,18 +469,19 @@ class PSF:
 
             if psftype & EXCITATION or psftype & TWOPHOTON:
                 widefield = True
-                self.em_wavelen = None
-                self.magnification = None
+                self.em_wavelen = math.nan
+                self.magnification = math.nan
                 self.pinh_radius = None
                 lex = lem = self.ex_wavelen
                 radius = 0.0
             elif psftype & EMISSION or psftype & WIDEFIELD:
                 widefield = True
-                self.ex_wavelen = None
-                self.magnification = None
+                self.ex_wavelen = math.nan
+                self.magnification = math.nan
                 lex = lem = self.em_wavelen
                 radius = 0.0
             elif psftype & CONFOCAL:
+                assert self.pinhole is not None
                 radius = self.pinhole.radius.um
                 if radius > 9.76 * self.ex_wavelen / self.num_aperture:
                     # use widefield approximation for pinholes > 8 AU
@@ -408,7 +491,7 @@ class PSF:
                     widefield = False
                     lex = self.ex_wavelen
                     lem = self.em_wavelen
-                if self.pinhole.shape != 'round':
+                if self.pinhole.shape != PinholeShape.ROUND:
                     raise NotImplementedError(
                         'Gaussian approximation only valid for round pinhole'
                     )
@@ -427,8 +510,8 @@ class PSF:
 
         elif psftype & ISOTROPIC:
             if psftype & EXCITATION or psftype & TWOPHOTON:
-                self.em_wavelen = None
-                self.magnification = None
+                self.em_wavelen = math.nan
+                self.magnification = math.nan
                 self.data = _psf.psf(
                     0,
                     self.shape,
@@ -440,8 +523,8 @@ class PSF:
                     80,
                 )
             elif psftype & EMISSION:
-                self.ex_wavelen = None
-                self.underfilling = None
+                self.ex_wavelen = math.nan
+                self.underfilling = math.nan
                 self.data = _psf.psf(
                     1,
                     self.shape,
@@ -458,7 +541,8 @@ class PSF:
                 # start threads to calculate excitation and emission PSF
                 threads = []
                 if not (
-                    self.expsf and self.expsf.psftype == ISOTROPIC | EXCITATION
+                    self.expsf is not None
+                    and self.expsf.psftype == ISOTROPIC | EXCITATION
                 ):
                     threads.append(
                         (
@@ -467,17 +551,18 @@ class PSF:
                                 ISOTROPIC | EXCITATION,
                                 shape,
                                 dims,
-                                ex_wavelen,
-                                None,
-                                num_aperture,
-                                refr_index,
-                                1.0,
-                                underfilling,
+                                ex_wavelen=ex_wavelen,
+                                em_wavelen=math.nan,
+                                num_aperture=num_aperture,
+                                refr_index=refr_index,
+                                magnification=1.0,
+                                underfilling=underfilling,
                             ),
                         )
                     )
                 if not (
-                    self.empsf and self.empsf.psftype == ISOTROPIC | EMISSION
+                    self.empsf is not None
+                    and self.empsf.psftype == ISOTROPIC | EMISSION
                 ):
                     threads.append(
                         (
@@ -486,12 +571,12 @@ class PSF:
                                 ISOTROPIC | EMISSION,
                                 shape,
                                 dims,
-                                None,
-                                em_wavelen,
-                                num_aperture,
-                                refr_index,
-                                magnification,
-                                1.0,
+                                ex_wavelen=math.nan,
+                                em_wavelen=em_wavelen,
+                                num_aperture=num_aperture,
+                                refr_index=refr_index,
+                                magnification=magnification,
+                                underfilling=1.0,
                             ),
                         )
                     )
@@ -500,17 +585,23 @@ class PSF:
                 for a, t in threads:
                     t.join()
                     setattr(self, a, t.psf)
+                if self.expsf is None:
+                    raise ValueError('Excitation PSF is None')
+                if self.empsf is None:
+                    raise ValueError('Emission PSF is None')
                 if not self.expsf.iscompatible(self.empsf):
                     raise ValueError(
-                        'Excitation and Emission PSF not compatible'
+                        'Excitation and emission PSF not compatible'
                     )
                 if psftype & WIDEFIELD or (
-                    self.pinhole.radius.um
+                    self.pinhole is not None
+                    and self.pinhole.radius.um
                     > 9.76 * self.ex_wavelen / self.num_aperture
                 ):
                     # use widefield approximation for pinholes > 8 AU
                     self.data = _psf.obsvol(self.expsf.data, self.empsf.data)
                 else:
+                    assert self.pinhole is not None
                     self.data = _psf.obsvol(
                         self.expsf.data, self.empsf.data, self.pinhole.kernel()
                     )
@@ -519,34 +610,33 @@ class PSF:
             self.data *= self.data
         self.time = float(clock() - start) * 1e3
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any, /) -> NDArray[numpy.float64]:
         """Return value of data array at position."""
         return self.data[key]
 
-    def __str__(self):
-        """Return properties of PSF object as string."""
+    def __str__(self) -> str:
         s = [self.__class__.__name__, self.name]
         s.append(f'shape: ({self.dims.px[0]}, {self.dims.px[1]}) pixel')
         dims = self.dims.format(['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f'])
         s.append(f'dimensions: {dims}')
-        if self.ex_wavelen:
+        if self.ex_wavelen is not math.nan:
             s.append(f'excitation wavelength: {self.ex_wavelen * 1e3:.1f} nm')
-        if self.em_wavelen:
+        if self.em_wavelen is not math.nan:
             s.append(f'emission wavelength: {self.em_wavelen * 1e3:.1f} nm')
         s.append(f'numeric aperture: {self.num_aperture:.2f}')
         s.append(f'refractive index: {self.refr_index:.2f}')
         angle = math.degrees(math.asin(self.sinalpha))
         s.append(f'half cone angle: {angle:.2f} deg')
-        if self.magnification:
+        if self.magnification is not math.nan:
             s.append(f'magnification: {self.magnification:.2f}')
-        if self.underfilling:
+        if self.underfilling is not math.nan:
             s.append(f'underfilling: {self.underfilling:.2f}')
         if self.pinhole:
             pinhole = self.pinhole.radius.format(
                 ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.4f', '%.2f']
             )
             s.append(f'pinhole radius: {pinhole}')
-        if self.sigma:
+        if self.sigma is not None:
             sigma = self.sigma.format(
                 ['um', 'ou', 'au', 'px'], ['%.3f', '%.3f', '%.3f', '%.2f']
             )
@@ -554,8 +644,8 @@ class PSF:
         s.append(f'computing time: {self.time:.2f} ms\n')
         return '\n '.join(s)
 
-    def iscompatible(self, other):
-        """Return True if objects match dimensions and optical properties."""
+    def iscompatible(self, other: PSF, /) -> bool:
+        """Return True if PSFs match dimensions and optical properties."""
         return (
             (self.dims.px[0] == other.dims.px[0])
             and (self.dims.px[1] == other.dims.px[1])
@@ -565,20 +655,22 @@ class PSF:
             and (self.refr_index == other.refr_index)
         )
 
-    def slice(self, key=slice(None)):
-        """Return a z slice of the PSF with rotational symmetries applied."""
+    def slice(
+        self, key: int | slice = slice(None), /
+    ) -> NDArray[numpy.float64]:
+        """Return z-slice of PSF with rotational symmetries applied."""
         return _psf.zr2zxy(self.data[key])
 
-    def volume(self):
-        """Return a 3D volume of the PSF with all symmetries applied.
+    def volume(self) -> NDArray[numpy.float64]:
+        """Return 3D volume of PSF with all symmetries applied.
 
         The shape of the returned array is
-            (2*self.shape[0]-1, 2*self.shape[1]-1, 2*self.shape[1]-1)
+        `(2*self.shape[0]-1, 2*self.shape[1]-1, 2*self.shape[1]-1)`
 
         """
         return mirror_symmetry(_psf.zr2zxy(self.data))
 
-    def imshow(self, subplot=111, **kwargs):
+    def imshow(self, subplot: Any = 111, **kwargs: Any):
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
         aspect = (
@@ -591,68 +683,80 @@ class PSF:
 
 
 class PSFthread(threading.Thread):
-    """Calculate point spread function in a thread."""
+    """Calculate point spread function in thread."""
 
-    def __init__(self, *args, **kwargs):
+    psf: PSF | None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         threading.Thread.__init__(self)
         self.args = args
         self.kwargs = kwargs
         self.psf = None
 
-    def run(self):
+    def run(self) -> None:
         self.psf = PSF(*self.args, **self.kwargs)
 
 
 class Pinhole:
     """Pinhole object for confocal microscopy.
 
-    Attributes
-    ----------
-    radius : Dimension instance
-        Dimensions of the outer pinhole radius in px (pixel), um (micrometers),
-        ou (optical units), and au (airy units).
-    shape : str
-        Shape of the pinhole. Either 'round' or 'square'.
+    Parameters:
+        radius:
+            Outer pinhole radius in micrometers in object space.
+        dimensions:
+            Dimensions of object space in 'px' (pixel), 'um' (micrometers),
+            'ou' (optical units), and 'au' (airy units).
+        shape:
+            Shape of pinhole, round or square.
 
-    Examples
-    --------
-    >>> ph = Pinhole(0.1, dict(px=16, um=1.0), 'round')
-    >>> print(f'{ph.radius.px:.5f}')
-    1.60000
-    >>> ph.kernel()
-    array([[1.     , 1.6    , 0.6    ],
-           [0.8    , 1.18579, 0.36393],
-           [0.3    , 0.36393, 0.     ]])
+    Examples:
+        >>> ph = Pinhole(0.1, dict(px=16, um=1.0), 'round')
+        >>> ph.shape
+        <PinholeShape.ROUND: 0>
+        >>> ph.radius.px
+        1.6
+        >>> ph.kernel()
+        array([[1.     , 1.6    , 0.6    ],
+               [0.8    , 1.18579, 0.36393],
+               [0.3    , 0.36393, 0.     ]])
 
     """
 
-    SHAPES = {'round': 0, 'square': 4}
+    shape: PinholeShape
+    """Shape of pinhole, round or square."""
 
-    def __init__(self, radius, dimensions, shape='round'):
-        """Initialize the pinhole object.
+    radius: Dimensions[float]
+    """
+    Outer pinhole radius in px (pixel), um (micrometers), ou (optical units),
+    and au (airy units).
+    """
 
-        Arguments
-        ---------
-        radius : float
-            Outer pinhole radius in micrometers in object space.
-        dimensions : dict
-            Dimensions of the object space in 'px' (pixel), 'um' (micrometers),
-            'ou' (optical units), and 'au' (airy units).
-        shape : str
-            Shape of the pinhole. Either 'round' (default) or 'square'.
+    _kernel: NDArray[numpy.float64] | None
 
-        """
-        self._corners = Pinhole.SHAPES[shape]
-        self.shape = shape
+    def __init__(
+        self,
+        radius: float,
+        dimensions: Mapping[str, float | tuple[float, float]],
+        shape: PinholeShape | str,
+    ) -> None:
+        self.shape = enumarg(PinholeShape, shape)  # type: ignore
         try:
-            dimensions = {k: v[1] for k, v in dimensions.items()}
-        except TypeError:
+            dimensions = {
+                k: v[1] for k, v in dimensions.items()  # type: ignore
+            }
+        except (TypeError, IndexError):
             pass
         self.radius = Dimensions(**dimensions)
         self.radius.um = float(radius)
         self._kernel = None
 
-    def __str__(self):
+    def kernel(self) -> NDArray[numpy.float64]:
+        """Return convolution kernel for integration over the pinhole."""
+        if self._kernel is None:
+            self._kernel = _psf.pinhole_kernel(self.radius.px, self.shape)
+        return self._kernel
+
+    def __str__(self) -> str:
         """Return string with information about Pinhole instance."""
         return '\n '.join(
             (
@@ -662,78 +766,87 @@ class Pinhole:
             )
         )
 
-    def kernel(self):
-        """Return convolution kernel for integration over the pinhole."""
-        if self._kernel is None:
-            self._kernel = _psf.pinhole_kernel(self.radius.px, self._corners)
-        return self._kernel
 
-
-class Dimensions(dict):
+class Dimensions(UserDict[str, DimensionT]):
     """Store dimensions in various units and perform linear conversions.
 
-    Examples
-    --------
-    >>> dim = Dimensions(px=100, um=2)
-    >>> dim(50, 'px', 'um')
-    1.0
-    >>> dim.px, dim.um
-    (100, 2)
-    >>> dim.px = 50
-    >>> dim.um
-    1.0
-    >>> dim.format(('um', 'px'), ('%.2f', '%.1f'))
-    '1.00 um, 50.0 px'
-    >>> dim = Dimensions(px=(100, 200), um=(2, 8))
-    >>> dim((50, 50), 'px', 'um')
-    (1.0, 2.0)
-    >>> dim.ou = (1, 2)
-    >>> dim.px
-    (100, 200)
-    >>> dim['px'] = (50, 100)
-    >>> dim.ou
-    (0.5, 1.0)
+    Examples:
+        >>> dim = Dimensions(px=100, um=2)
+        >>> dim(50, 'px', 'um')
+        1.0
+        >>> dim.px, dim.um
+        (100, 2)
+        >>> dim.px = 50
+        >>> dim.um
+        1.0
+        >>> dim.format(('um', 'px'), ('%.2f', '%.1f'))
+        '1.00 um, 50.0 px'
+        >>> dim = Dimensions(px=(100, 200), um=(2, 8))
+        >>> dim((50, 50), 'px', 'um')
+        (1.0, 2.0)
+        >>> dim.ou = (1, 2)
+        >>> dim.px
+        (100, 200)
+        >>> dim['px'] = (50, 100)
+        >>> dim.ou
+        (0.5, 1.0)
 
     """
 
-    __slots__ = ()
+    # can not use slots when deriving from UserDict
+    # __slots__ = ('data',)
 
-    def __call__(self, value, unit, newunit):
+    def __init__(self, dict=None, /, **kwargs):
+        data = {}
+        if dict is not None:
+            data.update(dict)
+        if kwargs:
+            data.update(kwargs)
+        self.__dict__['data'] = data  # avoid __setattr__
+
+    def __call__(
+        self, value: DimensionT, unit: str, newunit: str, /
+    ) -> DimensionT:
         """Return value given in unit in another unit."""
-        dim = self[unit]
-        new = self[newunit]
+        dim = self.data[unit]
+        new = self.data[newunit]
         try:
-            return value * (new / dim)
+            return value * (new / dim)  # type: ignore
         except TypeError:
-            return tuple(v * (o / u) for v, u, o in zip(value, dim, new))
+            return tuple(
+                v * (o / u) for v, u, o in zip(value, dim, new)  # type: ignore
+            )
 
-    def __setitem__(self, unit, value):
-        """Add a dimension or rescale all dimensions to new value."""
+    def __getattr__(self, unit: str, /) -> DimensionT:
+        if unit == 'data':
+            raise AttributeError()
+        return self.data[unit]
+
+    def __setattr__(self, unit: str, value: DimensionT, /) -> None:
+        """Add dimension or rescale all dimensions to new value."""
+        if unit != 'data':
+            self.__setitem__(unit, value)
+
+    def __setitem__(self, unit: str, value: DimensionT, /) -> None:
+        """Add dimension or rescale all dimensions to new value."""
+        data = self.data
         try:
-            dim = self[unit]
+            dim = data[unit]
         except KeyError:
-            dict.__setitem__(self, unit, value)
-        else:
-            try:
-                scale = value / dim
-                for k, v in self.items():
-                    dict.__setitem__(self, k, v * scale)
-            except TypeError:
-                scale = tuple(v / d for v, d in zip(value, dim))
-                for k, v in self.items():
-                    dict.__setitem__(
-                        self, k, tuple(v * s for v, s in zip(self[k], scale))
-                    )
+            data[unit] = value
+            return
+        try:
+            scale = value / dim  # type: ignore
+            for k, v in data.items():
+                data[k] = v * scale
+        except TypeError:
+            scale = tuple(v / d for v, d in zip(value, dim))  # type: ignore
+            for k, v in data.items():
+                data[k] = tuple(  # type: ignore
+                    v * s for v, s in zip(data[k], scale)  # type: ignore
+                )
 
-    def __getattr__(self, unit):
-        """Return value of unit."""
-        return self[unit]
-
-    def __setattr__(self, unit, value):
-        """Add a dimension or rescale all dimensions to new value."""
-        self.__setitem__(unit, value)
-
-    def format(self, keys, formatstr):
+    def format(self, keys: Iterable[str], formatstr: Iterable[str], /) -> str:
         """Return formatted string."""
         s = []
         try:
@@ -744,24 +857,30 @@ class Dimensions(dict):
             for k, f in zip(keys, formatstr):
                 v = self[k]
                 t = []
-                for i in v:
+                for i in v:  # type: ignore
                     t.append(f % i)
                 s.append('({}) {}'.format(', '.join(t), k))
         return ', '.join(s)
 
 
-def uv2zr(uv, wavelength, sinalpha, refr_index, magnification=1.0):
-    """Return z,r in units of the wavelength from u,v given in optical units.
+def uv2zr(
+    uv: tuple[float, float],
+    /,
+    wavelength: float,
+    sinalpha: float,
+    refr_index: float,
+    magnification: float = 1.0,
+) -> tuple[float, float]:
+    """Return z,r in units of wavelength from u,v given in optical units.
 
     For excitation, magnification should be 1.
 
-    Examples
-    --------
-    >>> numpy.allclose(
-    ...     uv2zr((1, 1), 488, 0.9, 1.33),
-    ...     (72.094692498695736, 64.885223248826165)
-    ... )
-    True
+    Examples:
+        >>> numpy.allclose(
+        ...     uv2zr((1, 1), 488, 0.9, 1.33),
+        ...     (72.094692498695736, 64.885223248826165)
+        ... )
+        True
 
     """
     a = wavelength / (2.0 * math.pi * sinalpha * refr_index * magnification)
@@ -769,18 +888,24 @@ def uv2zr(uv, wavelength, sinalpha, refr_index, magnification=1.0):
     return uv[0] * b, uv[1] * a
 
 
-def zr2uv(zr, wavelength, sinalpha, refr_index, magnification=1.0):
-    """Return u,v in optical units from z,r given in units of the wavelength.
+def zr2uv(
+    zr: tuple[float, float],
+    /,
+    wavelength: float,
+    sinalpha: float,
+    refr_index: float,
+    magnification: float = 1.0,
+) -> tuple[float, float]:
+    """Return u,v in optical units from z,r given in units of wavelength.
 
     For excitation, magnification should be 1.
 
-    Examples
-    --------
-    >>> numpy.allclose(
-    ...     zr2uv((1e3, 1e3), 488, 0.9, 1.33),
-    ...     (13.870646580788051, 15.411829534208946)
-    ... )
-    True
+    Examples:
+        >>> numpy.allclose(
+        ...     zr2uv((1e3, 1e3), 488, 0.9, 1.33),
+        ...     (13.870646580788051, 15.411829534208946)
+        ... )
+        True
 
     """
     a = (2.0 * math.pi * refr_index * sinalpha * magnification) / wavelength
@@ -788,25 +913,25 @@ def zr2uv(zr, wavelength, sinalpha, refr_index, magnification=1.0):
     return zr[0] * b, zr[1] * a
 
 
-def mirror_symmetry(data):
+def mirror_symmetry(data: ArrayLike, /) -> NDArray[numpy.float64]:
     """Apply mirror symmetry along one face in each dimension.
 
-    The input array can be 1, 2 or 3-dimensional.
+    The input array can be 1, 2, or 3-dimensional.
+    The shape of the returned array is `2*data.shape-1` in each dimension.
 
-    The shape of the returned array is 2*data.shape-1 in each dimension.
-
-    Examples
-    --------
-    >>> mirror_symmetry([0, 1])
-    array([1., 0., 1.])
-    >>> mirror_symmetry([[0, 1],[0, 1]])
-    array([[1., 0., 1.],
-           [1., 0., 1.],
-           [1., 0., 1.]])
-    >>> mirror_symmetry([[[0, 1],[0, 1]], [[0, 1],[0, 1]], [[0, 1],[0, 1]]])[0]
-    array([[1., 0., 1.],
-           [1., 0., 1.],
-           [1., 0., 1.]])
+    Examples:
+        >>> mirror_symmetry([0, 1])
+        array([1., 0., 1.])
+        >>> mirror_symmetry([[0, 1],[0, 1]])
+        array([[1., 0., 1.],
+               [1., 0., 1.],
+               [1., 0., 1.]])
+        >>> mirror_symmetry(
+        ...     [[[0, 1],[0, 1]], [[0, 1],[0, 1]], [[0, 1],[0, 1]]]
+        ... )[0]
+        array([[1., 0., 1.],
+               [1., 0., 1.],
+               [1., 0., 1.]])
 
     """
     data = numpy.array(data)
@@ -831,6 +956,17 @@ def mirror_symmetry(data):
             f'{data.ndim}-dimensional arrays not supported'
         )
     return result
+
+
+def enumarg(enum: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
+    """Return enum member from its name or value."""
+    try:
+        return enum(arg)
+    except Exception:
+        try:
+            return enum[arg.upper()]
+        except Exception:
+            raise ValueError(f'invalid argument {arg!r}')
 
 
 def imshow(
