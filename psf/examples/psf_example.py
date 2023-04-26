@@ -35,10 +35,16 @@ def psf_example(
     }
     args.update(kwargs)
 
-    obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)
+    obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)  # type: ignore
     expsf = obsvol.expsf
     empsf = obsvol.empsf
-    gauss = gauss2 = psf.PSF(psf.GAUSSIAN | psf.EXCITATION, **args)
+
+    gauss = gauss2 = psf.PSF(
+        psf.GAUSSIAN | psf.EXCITATION, **args  # type: ignore
+    )
+
+    assert expsf is not None
+    assert empsf is not None
 
     print(expsf)
     print(empsf)
@@ -87,11 +93,11 @@ def psf_example(
     empsf.imshow(242, sharex=ax, sharey=ax, cmap=cmap)
     obsvol.imshow(243, sharex=ax, sharey=ax, cmap=cmap)
     gauss.imshow(244, sharex=ax, sharey=ax, cmap=cmap)
-    z = 0
-    psf.imshow(245, data=expsf.slice(z), sharex=ax, cmap=cmap)
-    psf.imshow(246, data=empsf.slice(z), sharex=ax, cmap=cmap)
-    psf.imshow(247, data=obsvol.slice(z), sharex=ax, cmap=cmap)
-    psf.imshow(248, data=gauss.slice(z), sharex=ax, cmap=cmap)
+    i = 0
+    psf.imshow(245, data=expsf.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(246, data=empsf.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(247, data=obsvol.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(248, data=gauss.slice(i), sharex=ax, cmap=cmap)
 
     # plot cross sections
     z = numpy.arange(0, gauss.dims.ou[0], gauss.dims.ou[0] / gauss.dims.px[0])
@@ -120,7 +126,7 @@ def psf_example(
     pyplot.plot(
         z, obsvol[:, 0] - gauss[:, 0], 'c-', label=obsvol.name + ' (z)'
     )
-    pyplot.axis([0, zr_max, -0.1, 0.1])
+    pyplot.axis([0, zr_max, -0.25, 0.25])
     pyplot.tight_layout()
 
     pyplot.show()
