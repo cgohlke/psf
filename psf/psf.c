@@ -1,7 +1,7 @@
 /* psf.c */
 
 /*
-Copyright (c) 2007-2022, Christoph Gohlke
+Copyright (c) 2007-2023, Christoph Gohlke
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -38,12 +38,12 @@ for the psf package.\n\
 \n\
 Refer to the psf.py module for a high level API, documentation, and tests.\n\
 \n\
-:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_ and Oliver Holub\n\
+:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
 :License: BSD 3-Clause\n\
-:Version: 2022.9.12\n\
+:Version: 2023.4.26\n\
 "
 
-#define _VERSION_ "2022.9.12"
+#define _VERSION_ "2023.4.26"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
