@@ -1,6 +1,8 @@
 include LICENSE
 include README.rst
+include CHANGES.rst
 
+include psf/py.typed
 include psf/_psf.c
 
 include .github/workflows/wheel.yml
@@ -14,3 +16,5 @@ recursive-exclude tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *Copy*
+recursive-exclude * *-
+recursive-exclude * *.html
