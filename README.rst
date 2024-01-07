@@ -6,9 +6,9 @@ fluorescence microscopy.
 
 The psf library is no longer actively developed.
 
-:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_
+:Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.4.26
+:Version: 2024.1.6
 
 Quickstart
 ----------
@@ -29,13 +29,17 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.3
-- `NumPy <https://pypi.org/project/numpy/>`_ 1.23.5
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.7.1
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.7, 3.12.1
+- `NumPy <https://pypi.org/project/numpy/>`_ 1.26.3
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.8.2
   (optional for plotting)
 
 Revisions
 ---------
+
+2024.1.6
+
+- Change PSF.TYPES from dict to set (breaking).
 
 2023.4.26
 
@@ -92,8 +96,6 @@ References
    B Zhang, J Zerubia, J C Olivo-Marin. Appl. Optics (46) 1819-29, 2007.
 6. The SVI-wiki on 3D microscopy, deconvolution, visualization and analysis.
    https://svi.nl/NyquistRate
-7. Theory of Confocal Microscopy: Resolution and Contrast in Confocal
-   Microscopy. http://www.olympusfluoview.com/theory/resolutionintro.html
 
 Examples
 --------
@@ -110,12 +112,12 @@ Examples
 ...     pinhole_shape='round'
 ... )
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
->>> print(f'{obsvol.sigma.ou[0]:.5f}, {obsvol.sigma.ou[1]:.5f}')
-2.58832, 1.37059
+>>> obsvol.sigma.ou
+(2.588..., 1.370...)
 >>> obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)
->>> print(obsvol, end='')  # doctest:+ELLIPSIS
+>>> print(obsvol, end='')
 PSF
- Confocal, Isotropic
+ ISOTROPIC|CONFOCAL
  shape: (32, 32) pixel
  dimensions: (4.00, 4.00) um, (55.64, 61.80) ou, (8.06, 8.06) au
  excitation wavelength: 488.0 nm
@@ -129,9 +131,9 @@ PSF
  computing time: ... ms
 >>> obsvol[0, :3]
 array([1.     , 0.51071, 0.04397])
->>> # save the image plane to file
+>>> # write the image plane to file
 >>> obsvol.slice(0).tofile('_test_slice.bin')
->>> # save a full 3D PSF volume to file
+>>> # write a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
 
 Refer to `psf_example.py` in the source distribution for more examples.
