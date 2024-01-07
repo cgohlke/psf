@@ -1,6 +1,6 @@
 # psf.py
 
-# Copyright (c) 2007-2023, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2024, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,9 +36,9 @@ fluorescence microscopy.
 
 The psf library is no longer actively developed.
 
-:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_
+:Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.4.26
+:Version: 2024.1.6
 
 Quickstart
 ----------
@@ -59,13 +59,17 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.3
-- `NumPy <https://pypi.org/project/numpy/>`_ 1.23.5
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.7.1
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.7, 3.12.1
+- `NumPy <https://pypi.org/project/numpy/>`_ 1.26.3
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.8.2
   (optional for plotting)
 
 Revisions
 ---------
+
+2024.1.6
+
+- Change PSF.TYPES from dict to set (breaking).
 
 2023.4.26
 
@@ -122,8 +126,6 @@ References
    B Zhang, J Zerubia, J C Olivo-Marin. Appl. Optics (46) 1819-29, 2007.
 6. The SVI-wiki on 3D microscopy, deconvolution, visualization and analysis.
    https://svi.nl/NyquistRate
-7. Theory of Confocal Microscopy: Resolution and Contrast in Confocal
-   Microscopy. http://www.olympusfluoview.com/theory/resolutionintro.html
 
 Examples
 --------
@@ -140,12 +142,12 @@ Examples
 ...     pinhole_shape='round'
 ... )
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
->>> print(f'{obsvol.sigma.ou[0]:.5f}, {obsvol.sigma.ou[1]:.5f}')
-2.58832, 1.37059
+>>> obsvol.sigma.ou
+(2.588..., 1.370...)
 >>> obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)
->>> print(obsvol, end='')  # doctest:+ELLIPSIS
+>>> print(obsvol, end='')
 PSF
- Confocal, Isotropic
+ ISOTROPIC|CONFOCAL
  shape: (32, 32) pixel
  dimensions: (4.00, 4.00) um, (55.64, 61.80) ou, (8.06, 8.06) au
  excitation wavelength: 488.0 nm
@@ -159,9 +161,9 @@ PSF
  computing time: ... ms
 >>> obsvol[0, :3]
 array([1.     , 0.51071, 0.04397])
->>> # save the image plane to file
+>>> # write the image plane to file
 >>> obsvol.slice(0).tofile('_test_slice.bin')
->>> # save a full 3D PSF volume to file
+>>> # write a full 3D PSF volume to file
 >>> obsvol.volume().tofile('_test_volume.bin')
 
 Refer to `psf_example.py` in the source distribution for more examples.
@@ -170,7 +172,7 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2023.4.26'
+__version__ = '2024.1.6'
 
 __all__ = [
     'PSF',
@@ -194,10 +196,10 @@ __all__ = [
     'PARAXIAL',
 ]
 
-import math
-import time
-import threading
 import enum
+import math
+import threading
+import time
 from collections import UserDict
 
 import numpy
@@ -210,8 +212,9 @@ except ImportError:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, TypeVar
     from collections.abc import Iterable, Mapping
+    from typing import Any, TypeVar
+
     from numpy.typing import ArrayLike, NDArray
 
     DimensionT = TypeVar('DimensionT')
@@ -243,7 +246,7 @@ class PsfType(enum.IntFlag):
     """Two-photon type."""
 
     PARAXIAL = 512
-    """Border case for Gaussian approximations."""
+    """Border case for Gaussian approximation."""
 
 
 class PinholeShape(enum.IntEnum):
@@ -301,21 +304,21 @@ class PSF:
     """
 
     TYPES = {
-        ISOTROPIC | EXCITATION: 'Excitation, Isotropic',
-        ISOTROPIC | EMISSION: 'Emission, Isotropic',
-        ISOTROPIC | WIDEFIELD: 'Widefield, Isotropic',
-        ISOTROPIC | CONFOCAL: 'Confocal, Isotropic',
-        ISOTROPIC | TWOPHOTON: 'Two-Photon, Isotropic',
-        GAUSSIAN | EXCITATION: 'Excitation, Gaussian',
-        GAUSSIAN | EMISSION: 'Emission, Gaussian',
-        GAUSSIAN | WIDEFIELD: 'Widefield, Gaussian',  # == Gaussian Emission
-        GAUSSIAN | CONFOCAL: 'Confocal, Gaussian',
-        GAUSSIAN | TWOPHOTON: 'Two-Photon, Gaussian',
-        GAUSSIAN | EXCITATION | PARAXIAL: 'Excitation, Gaussian, Paraxial',
-        GAUSSIAN | EMISSION | PARAXIAL: 'Emission, Gaussian, Paraxial',
-        GAUSSIAN | WIDEFIELD | PARAXIAL: 'Widefield, Gaussian, Paraxial',
-        GAUSSIAN | CONFOCAL | PARAXIAL: 'Confocal, Gaussian, Paraxial',
-        GAUSSIAN | TWOPHOTON | PARAXIAL: 'Two-Photon, Gaussian, Paraxial',
+        ISOTROPIC | EXCITATION,
+        ISOTROPIC | EMISSION,
+        ISOTROPIC | WIDEFIELD,
+        ISOTROPIC | CONFOCAL,
+        ISOTROPIC | TWOPHOTON,
+        GAUSSIAN | EXCITATION,
+        GAUSSIAN | EMISSION,
+        GAUSSIAN | WIDEFIELD,  # == GAUSSIAN | EMISSION
+        GAUSSIAN | CONFOCAL,
+        GAUSSIAN | TWOPHOTON,
+        GAUSSIAN | EXCITATION | PARAXIAL,
+        GAUSSIAN | EMISSION | PARAXIAL,
+        GAUSSIAN | WIDEFIELD | PARAXIAL,
+        GAUSSIAN | CONFOCAL | PARAXIAL,
+        GAUSSIAN | TWOPHOTON | PARAXIAL,
     }
 
     psftype: PsfType
@@ -331,10 +334,10 @@ class PSF:
     """Size of data array in pixel."""
 
     dims: Dimensions[tuple[float, float]]
+    """Dimensions of data array
+    in px (pixel), um (micrometers), ou (optical units), and au (airy units).
     """
-    Dimensions of data array in px (pixel), um (micrometers),
-    ou (optical units), and au (airy units).
-    """
+
     ex_wavelen: float
     """Excitation wavelength in micrometers if applicable."""
 
@@ -351,15 +354,13 @@ class PSF:
     """Total magnification of optical system."""
 
     underfilling: float
-    """
-    Ratio of radius of objective back aperture to exp(-2) radius of
+    """Ratio of radius of objective back aperture to exp(-2) radius of
     excitation laser.
     """
 
     sigma: Dimensions[tuple[float, float]] | None
-    """
-    Gaussian sigmas in px (pixel), um (micrometers), ou (optical units),
-    and au (airy units) if applicable.
+    """Gaussian sigmas if applicable
+    in px (pixel), um (micrometers), ou (optical units), and au (airy units).
     """
 
     pinhole: Pinhole | None
@@ -390,22 +391,17 @@ class PSF:
         empsf: PSF | None = None,
         name: str | None = None,
     ):
-        try:
-            self.name = PSF.TYPES[psftype]
-            self.psftype = psftype
-        except Exception as exc:
+        if psftype not in PSF.TYPES:
             raise ValueError(
                 f'PSF type {psftype!r} is invalid or not supported'
-            ) from exc
-
-        if name:
-            self.name = str(name)
-
+            )
+        self.psftype = psftype
+        self.name = str(name if name else psftype.name)
         self.shape = int(shape[0]), int(shape[1])
         self.dims = Dimensions(px=shape, um=(float(dims[0]), float(dims[1])))
 
-        self.ex_wavelen = ex_wavelen / 1e3
-        self.em_wavelen = em_wavelen / 1e3
+        self.ex_wavelen = ex_wavelen / 1e3 if ex_wavelen else math.nan
+        self.em_wavelen = em_wavelen / 1e3 if em_wavelen else math.nan
         self.num_aperture = num_aperture
         self.refr_index = refr_index
         self.magnification = magnification
@@ -415,10 +411,14 @@ class PSF:
         self.expsf = expsf
         self.empsf = empsf
 
-        if not (psftype & EXCITATION) and em_wavelen is math.nan:
+        if not (psftype & EXCITATION) and (
+            em_wavelen is None or em_wavelen is math.nan
+        ):
             raise ValueError('emission wavelength not specified')
 
-        if not (psftype & EMISSION) and ex_wavelen is math.nan:
+        if not (psftype & EMISSION) and (
+            ex_wavelen is None or ex_wavelen is math.nan
+        ):
             raise ValueError('excitation wavelength not specified')
 
         if psftype & CONFOCAL and pinhole_radius is None:
@@ -711,6 +711,8 @@ class Pinhole:
 
     Examples:
         >>> ph = Pinhole(0.1, dict(px=16, um=1.0), 'round')
+        >>> ph
+        Pinhole(1, Dimensions(px=1.6, um=0.1), 'ROUND')
         >>> ph.shape
         <PinholeShape.ROUND: 0>
         >>> ph.radius.px
@@ -726,9 +728,8 @@ class Pinhole:
     """Shape of pinhole, round or square."""
 
     radius: Dimensions[float]
-    """
-    Outer pinhole radius in px (pixel), um (micrometers), ou (optical units),
-    and au (airy units).
+    """Outer pinhole radius
+    in px (pixel), um (micrometers), ou (optical units), and au (airy units).
     """
 
     _kernel: NDArray[numpy.float64] | None
@@ -756,15 +757,9 @@ class Pinhole:
             self._kernel = _psf.pinhole_kernel(self.radius.px, self.shape)
         return self._kernel
 
-    def __str__(self) -> str:
-        """Return string with information about Pinhole instance."""
-        return '\n '.join(
-            (
-                self.__class__.__name__,
-                f'shape: {self.shape}',
-                f'radius: {self.radius}',
-            )
-        )
+    def __repr__(self) -> str:
+        params = f'1, {self.radius}, {self.shape.name!r}'
+        return f'{self.__class__.__name__}({params})'
 
 
 class Dimensions(UserDict[str, DimensionT]):
@@ -772,6 +767,8 @@ class Dimensions(UserDict[str, DimensionT]):
 
     Examples:
         >>> dim = Dimensions(px=100, um=2)
+        >>> dim
+        Dimensions(px=100, um=2)
         >>> dim(50, 'px', 'um')
         1.0
         >>> dim.px, dim.um
@@ -782,6 +779,8 @@ class Dimensions(UserDict[str, DimensionT]):
         >>> dim.format(('um', 'px'), ('%.2f', '%.1f'))
         '1.00 um, 50.0 px'
         >>> dim = Dimensions(px=(100, 200), um=(2, 8))
+        >>> dim
+        Dimensions(px=(100, 200), um=(2, 8))
         >>> dim((50, 50), 'px', 'um')
         (1.0, 2.0)
         >>> dim.ou = (1, 2)
@@ -793,13 +792,10 @@ class Dimensions(UserDict[str, DimensionT]):
 
     """
 
-    # can not use slots when deriving from UserDict
-    # __slots__ = ('data',)
-
-    def __init__(self, dict=None, /, **kwargs):
+    def __init__(self, adict=None, /, **kwargs) -> None:
         data = {}
-        if dict is not None:
-            data.update(dict)
+        if adict is not None:
+            data.update(adict)
         if kwargs:
             data.update(kwargs)
         self.__dict__['data'] = data  # avoid __setattr__
@@ -846,6 +842,10 @@ class Dimensions(UserDict[str, DimensionT]):
                     v * s for v, s in zip(data[k], scale)  # type: ignore
                 )
 
+    def __repr__(self) -> str:
+        params = ', '.join(f'{k}={v}' for k, v in self.data.items())
+        return f'{self.__class__.__name__}({params})'
+
     def format(self, keys: Iterable[str], formatstr: Iterable[str], /) -> str:
         """Return formatted string."""
         s = []
@@ -876,11 +876,8 @@ def uv2zr(
     For excitation, magnification should be 1.
 
     Examples:
-        >>> numpy.allclose(
-        ...     uv2zr((1, 1), 488, 0.9, 1.33),
-        ...     (72.094692498695736, 64.885223248826165)
-        ... )
-        True
+        >>> uv2zr((1, 1), 488, 0.9, 1.33)
+        (72.094..., 64.885...)
 
     """
     a = wavelength / (2.0 * math.pi * sinalpha * refr_index * magnification)
@@ -901,11 +898,8 @@ def zr2uv(
     For excitation, magnification should be 1.
 
     Examples:
-        >>> numpy.allclose(
-        ...     zr2uv((1e3, 1e3), 488, 0.9, 1.33),
-        ...     (13.870646580788051, 15.411829534208946)
-        ... )
-        True
+        >>> zr2uv((1e3, 1e3), 488, 0.9, 1.33)
+        (13.870..., 15.411...)
 
     """
     a = (2.0 * math.pi * refr_index * sinalpha * magnification) / wavelength
@@ -965,8 +959,8 @@ def enumarg(enum: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
     except Exception:
         try:
             return enum[arg.upper()]
-        except Exception:
-            raise ValueError(f'invalid argument {arg!r}')
+        except Exception as exc:
+            raise ValueError(f'invalid argument {arg!r}') from exc
 
 
 def imshow(
@@ -986,15 +980,13 @@ def imshow(
     Mirror symmetry is applied along the x and y axes.
 
     """
+    import matplotlib
     from matplotlib import pyplot
 
     ax = pyplot.subplot(subplot, sharex=sharex, sharey=sharey, facecolor='k')
     if title:
         pyplot.title(title)
-    if cmap is None:
-        cmap = pyplot.cm.cubehelix  # coolwarm
-    else:
-        cmap = pyplot.cm.get_cmap(cmap)
+    cmap = matplotlib.colormaps.get_cmap('cubehelix' if cmap is None else cmap)
     try:
         # workaround: set alpha for i_bad
         cmap._init()
@@ -1018,4 +1010,4 @@ if __name__ == '__main__':
     import doctest
 
     numpy.set_printoptions(suppress=True, precision=5)
-    doctest.testmod()
+    doctest.testmod(optionflags=doctest.ELLIPSIS)
