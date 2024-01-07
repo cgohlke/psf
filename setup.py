@@ -2,11 +2,11 @@
 
 """Psf package Setuptools script."""
 
-import sys
 import re
+import sys
 
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext as _build_ext
+import numpy
+from setuptools import Extension, setup
 
 
 def search(pattern, code, flags=0):
@@ -17,10 +17,10 @@ def search(pattern, code, flags=0):
     return match.groups()[0]
 
 
-with open('psf/psf.py') as fh:
+with open('psf/psf.py', encoding='utf-8') as fh:
     code = fh.read()
 
-version = search(r"__version__ = '(.*?)'", code)
+version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev0')
 
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
 
@@ -43,25 +43,11 @@ license = search(
 license = license.replace('# ', '').replace('#', '')
 
 if 'sdist' in sys.argv:
-    with open('LICENSE', 'w') as fh:
+    with open('LICENSE', 'w', encoding='utf-8') as fh:
         fh.write('BSD 3-Clause License\n\n')
         fh.write(license)
-    with open('README.rst', 'w') as fh:
+    with open('README.rst', 'w', encoding='utf-8') as fh:
         fh.write(readme)
-
-
-class build_ext(_build_ext):
-    """Delay import numpy until build."""
-
-    def finalize_options(self):
-        _build_ext.finalize_options(self)
-        if isinstance(__builtins__, dict):
-            __builtins__['__NUMPY_SETUP__'] = False
-        else:
-            setattr(__builtins__, '__NUMPY_SETUP__', False)
-        import numpy
-
-        self.include_dirs.append(numpy.get_include())
 
 
 setup(
@@ -70,6 +56,7 @@ setup(
     license='BSD',
     description=description,
     long_description=readme,
+    long_description_content_type='text/x-rst',
     author='Christoph Gohlke',
     author_email='cgohlke@cgohlke.com',
     url='https://www.cgohlke.com',
@@ -78,14 +65,16 @@ setup(
         'Source Code': 'https://github.com/cgohlke/psf',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.8',
+    python_requires='>=3.9',
     install_requires=['numpy'],
-    setup_requires=['setuptools', 'numpy'],
     extras_require={'all': ['matplotlib']},
-    cmdclass={'build_ext': build_ext},
     packages=['psf'],
-    ext_modules=[Extension('psf._psf', ['psf/psf.c'])],
     package_data={'psf': ['examples/*.py']},
+    ext_modules=[
+        Extension(
+            'psf._psf', ['psf/psf.c'], include_dirs=[numpy.get_include()]
+        )
+    ],
     zip_safe=False,
     platforms=['any'],
     classifiers=[
@@ -99,5 +88,6 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
     ],
 )
