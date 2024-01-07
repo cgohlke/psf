@@ -3,7 +3,7 @@ include README.rst
 include CHANGES.rst
 
 include psf/py.typed
-include psf/_psf.c
+include psf/psf.c
 
 include .github/workflows/wheel.yml
 
