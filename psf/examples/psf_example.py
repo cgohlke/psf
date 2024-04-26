@@ -8,9 +8,8 @@ for fluorescence microscopy.
 """
 
 import numpy
-from matplotlib import pyplot
-
 import psf
+from matplotlib import pyplot
 
 
 def psf_example(
