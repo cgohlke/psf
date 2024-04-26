@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2024.1.6
+:Version: 2024.4.24
 
 Quickstart
 ----------
@@ -59,13 +59,17 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.7, 3.12.1
-- `NumPy <https://pypi.org/project/numpy/>`_ 1.26.3
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.8.2
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.9, 3.12.3
+- `NumPy <https://pypi.org/project/numpy/>`_ 1.26.4
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.8.4
   (optional for plotting)
 
 Revisions
 ---------
+
+2024.4.24
+
+- Support NumPy 2.
 
 2024.1.6
 
@@ -172,7 +176,7 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2024.1.6'
+__version__ = '2024.4.24'
 
 __all__ = [
     'PSF',
@@ -201,6 +205,7 @@ import math
 import threading
 import time
 from collections import UserDict
+from typing import TYPE_CHECKING
 
 import numpy
 
@@ -208,8 +213,6 @@ try:
     from . import _psf
 except ImportError:
     import _psf  # type: ignore
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
