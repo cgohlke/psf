@@ -8,7 +8,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2024.4.24
+:Version: 2024.5.24
 
 Quickstart
 ----------
@@ -16,7 +16,7 @@ Quickstart
 Install the psf package and all dependencies from the
 `Python Package Index <https://pypi.org/project/psf/>`_::
 
-    python -m pip install -U psf[all]
+    python -m pip install -U "psf[all]"
 
 See `Examples`_ for using the programming interface.
 
@@ -36,6 +36,10 @@ This revision was tested with the following requirements and dependencies
 
 Revisions
 ---------
+
+2024.5.24
+
+- Fix docstring examples not correctly rendered on GitHub.
 
 2024.4.24
 
@@ -113,7 +117,7 @@ Examples
 ...     num_aperture=1.2,
 ...     refr_index=1.333,
 ...     pinhole_radius=0.55,
-...     pinhole_shape='round'
+...     pinhole_shape='round',
 ... )
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
 >>> obsvol.sigma.ou
