@@ -40,10 +40,10 @@ Refer to the psf.py module for a high level API, documentation, and tests.\n\
 \n\
 :Authors: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
 :License: BSD 3-Clause\n\
-:Version: 2023.4.26\n\
+:Version: 2024.5.24\n\
 "
 
-#define _VERSION_ "2023.4.26"
+#define _VERSION_ "2024.5.24"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
