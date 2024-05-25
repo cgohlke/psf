@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2024.4.24
+:Version: 2024.5.24
 
 Quickstart
 ----------
@@ -46,7 +46,7 @@ Quickstart
 Install the psf package and all dependencies from the
 `Python Package Index <https://pypi.org/project/psf/>`_::
 
-    python -m pip install -U psf[all]
+    python -m pip install -U "psf[all]"
 
 See `Examples`_ for using the programming interface.
 
@@ -66,6 +66,10 @@ This revision was tested with the following requirements and dependencies
 
 Revisions
 ---------
+
+2024.5.24
+
+- Fix docstring examples not correctly rendered on GitHub.
 
 2024.4.24
 
@@ -143,7 +147,7 @@ Examples
 ...     num_aperture=1.2,
 ...     refr_index=1.333,
 ...     pinhole_radius=0.55,
-...     pinhole_shape='round'
+...     pinhole_shape='round',
 ... )
 >>> obsvol = psf.PSF(psf.GAUSSIAN | psf.CONFOCAL, **args)
 >>> obsvol.sigma.ou
@@ -176,7 +180,7 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2024.4.24'
+__version__ = '2024.5.24'
 
 __all__ = [
     'PSF',
@@ -399,7 +403,7 @@ class PSF:
                 f'PSF type {psftype!r} is invalid or not supported'
             )
         self.psftype = psftype
-        self.name = str(name if name else psftype.name)
+        self.name = str(name if name else enumstr(psftype))
         self.shape = int(shape[0]), int(shape[1])
         self.dims = Dimensions(px=shape, um=(float(dims[0]), float(dims[1])))
 
@@ -919,12 +923,12 @@ def mirror_symmetry(data: ArrayLike, /) -> NDArray[numpy.float64]:
     Examples:
         >>> mirror_symmetry([0, 1])
         array([1., 0., 1.])
-        >>> mirror_symmetry([[0, 1],[0, 1]])
+        >>> mirror_symmetry([[0, 1], [0, 1]])
         array([[1., 0., 1.],
                [1., 0., 1.],
                [1., 0., 1.]])
         >>> mirror_symmetry(
-        ...     [[[0, 1],[0, 1]], [[0, 1],[0, 1]], [[0, 1],[0, 1]]]
+        ...     [[[0, 1], [0, 1]], [[0, 1], [0, 1]], [[0, 1], [0, 1]]]
         ... )[0]
         array([[1., 0., 1.],
                [1., 0., 1.],
@@ -964,6 +968,19 @@ def enumarg(enum: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
             return enum[arg.upper()]
         except Exception as exc:
             raise ValueError(f'invalid argument {arg!r}') from exc
+
+
+def enumstr(enum: Any, /) -> str:
+    """Return short string representation of Enum member.
+
+    >>> enumstr(PsfType.ANISOTROPIC)
+    'ANISOTROPIC'
+
+    """
+    name = enum.name
+    if name is None:
+        name = str(enum)
+    return name
 
 
 def imshow(
