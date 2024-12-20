@@ -8,6 +8,8 @@ import sys
 import numpy
 from setuptools import Extension, setup
 
+buildnumber = ''
+
 
 def search(pattern, string, flags=0):
     """Return first match of pattern in string."""
@@ -39,6 +41,7 @@ with open('psf/psf.py', encoding='utf-8') as fh:
     code = fh.read()
 
 version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev0')
+version += ('.' + buildnumber) if buildnumber else ''
 
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
 
@@ -47,7 +50,6 @@ readme = search(
     code,
     re.MULTILINE | re.DOTALL,
 )
-
 readme = '\n'.join(
     [description, '=' * len(description)] + readme.splitlines()[1:]
 )
@@ -56,7 +58,7 @@ if 'sdist' in sys.argv:
     # update README, LICENSE, and CHANGES files
 
     with open('README.rst', 'w', encoding='utf-8') as fh:
-        fh.write(readme)
+        fh.write(fix_docstring_examples(readme))
 
     license = search(
         r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
@@ -84,7 +86,7 @@ setup(
         'Source Code': 'https://github.com/cgohlke/psf',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.9',
+    python_requires='>=3.10',
     install_requires=['numpy'],
     extras_require={'all': ['matplotlib']},
     packages=['psf'],
@@ -104,9 +106,9 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: C',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
 )
