@@ -1,6 +1,6 @@
 # psf.py
 
-# Copyright (c) 2007-2024, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2025, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2024.5.24
+:Version: 2025.1.1
 
 Quickstart
 ----------
@@ -59,13 +59,18 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.9, 3.12.3
-- `NumPy <https://pypi.org/project/numpy/>`_ 1.26.4
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.8.4
+- `CPython <https://www.python.org>`_ 3.10.11, 3.11.9, 3.12.8, 3.13.1 64-bit
+- `NumPy <https://pypi.org/project/numpy/>`_ 2.1.3
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.0
   (optional for plotting)
 
 Revisions
 ---------
+
+2025.1.1
+
+- Improve type hints.
+- Drop support for Python 3.9, support Python 3.13.
 
 2024.5.24
 
@@ -93,16 +98,16 @@ Revisions
 
 2022.9.12
 
-- Remove support for Python 3.7 (NEP 29).
+- Drop support for Python 3.7 (NEP 29).
 - Update metadata.
 
 2021.6.6
 
-- Remove support for Python 3.6 (NEP 29).
+- Drop support for Python 3.6 (NEP 29).
 
 2020.1.1
 
-- Remove support for Python 2.7 and 3.5.
+- Drop support for Python 2.7 and 3.5.
 - Update copyright.
 
 2019.10.14
@@ -180,9 +185,10 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2024.5.24'
+__version__ = '2025.1.1'
 
 __all__ = [
+    '__version__',
     'PSF',
     'PsfType',
     'Pinhole',
@@ -213,20 +219,24 @@ from typing import TYPE_CHECKING
 
 import numpy
 
-try:
-    from . import _psf
-except ImportError:
-    import _psf  # type: ignore
-
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from typing import Any, TypeVar
 
+    from matplotlib.axes import Axes
+    from matplotlib.image import AxesImage
     from numpy.typing import ArrayLike, NDArray
 
     DimensionT = TypeVar('DimensionT')
 else:
     DimensionT = None
+
+
+_psf: Any
+try:
+    from . import _psf  # type: ignore[no-redef, attr-defined]
+except ImportError:
+    import _psf  # type: ignore[no-redef]
 
 
 class PsfType(enum.IntFlag):
@@ -418,14 +428,10 @@ class PSF:
         self.expsf = expsf
         self.empsf = empsf
 
-        if not (psftype & EXCITATION) and (
-            em_wavelen is None or em_wavelen is math.nan
-        ):
+        if not (psftype & EXCITATION) and em_wavelen is math.nan:
             raise ValueError('emission wavelength not specified')
 
-        if not (psftype & EMISSION) and (
-            ex_wavelen is None or ex_wavelen is math.nan
-        ):
+        if not (psftype & EMISSION) and ex_wavelen is math.nan:
             raise ValueError('excitation wavelength not specified')
 
         if psftype & CONFOCAL and pinhole_radius is None:
@@ -619,7 +625,7 @@ class PSF:
 
     def __getitem__(self, key: Any, /) -> NDArray[numpy.float64]:
         """Return value of data array at position."""
-        return self.data[key]
+        return numpy.asarray(self.data[key])
 
     def __str__(self) -> str:
         s = [self.__class__.__name__, self.name]
@@ -666,7 +672,7 @@ class PSF:
         self, key: int | slice = slice(None), /
     ) -> NDArray[numpy.float64]:
         """Return z-slice of PSF with rotational symmetries applied."""
-        return _psf.zr2zxy(self.data[key])
+        return numpy.asarray(_psf.zr2zxy(self.data[key]))
 
     def volume(self) -> NDArray[numpy.float64]:
         """Return 3D volume of PSF with all symmetries applied.
@@ -677,16 +683,16 @@ class PSF:
         """
         return mirror_symmetry(_psf.zr2zxy(self.data))
 
-    def imshow(self, subplot: Any = 111, **kwargs: Any):
+    def imshow(
+        self, subplot: Any = 111, **kwargs: Any
+    ) -> tuple[Axes, AxesImage]:
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
         aspect = (
             self.shape[1] / self.shape[0] * self.dims.um[0] / self.dims.um[1]
         )
-        kwargs.update(
-            dict(data=self.data, title=title, subplot=subplot, aspect=aspect)
-        )
-        return imshow(**kwargs)
+        kwargs.update({'title': title, 'aspect': aspect})
+        return imshow(subplot, self.data, **kwargs)
 
 
 class PSFthread(threading.Thread):
@@ -747,10 +753,10 @@ class Pinhole:
         dimensions: Mapping[str, float | tuple[float, float]],
         shape: PinholeShape | str,
     ) -> None:
-        self.shape = enumarg(PinholeShape, shape)  # type: ignore
+        self.shape = enumarg(PinholeShape, shape)  # type: ignore[assignment]
         try:
             dimensions = {
-                k: v[1] for k, v in dimensions.items()  # type: ignore
+                k: v[1] for k, v in dimensions.items()  # type: ignore[index]
             }
         except (TypeError, IndexError):
             pass
@@ -799,8 +805,10 @@ class Dimensions(UserDict[str, DimensionT]):
 
     """
 
-    def __init__(self, adict=None, /, **kwargs) -> None:
-        data = {}
+    def __init__(
+        self, adict: dict[str, Any] | None = None, /, **kwargs: Any
+    ) -> None:
+        data: dict[str, Any] = {}
         if adict is not None:
             data.update(adict)
         if kwargs:
@@ -811,14 +819,18 @@ class Dimensions(UserDict[str, DimensionT]):
         self, value: DimensionT, unit: str, newunit: str, /
     ) -> DimensionT:
         """Return value given in unit in another unit."""
+        # TODO: how to type this correctly?
         dim = self.data[unit]
         new = self.data[newunit]
         try:
-            return value * (new / dim)  # type: ignore
+            return value * (new / dim)  # type: ignore[no-any-return, operator]
         except TypeError:
             return tuple(
-                v * (o / u) for v, u, o in zip(value, dim, new)  # type: ignore
-            )
+                v * (o / u)
+                for v, u, o in zip(
+                    value, dim, new
+                )  # type: ignore[call-overload]
+            )  # type: ignore[return-value]
 
     def __getattr__(self, unit: str, /) -> DimensionT:
         if unit == 'data':
@@ -832,6 +844,7 @@ class Dimensions(UserDict[str, DimensionT]):
 
     def __setitem__(self, unit: str, value: DimensionT, /) -> None:
         """Add dimension or rescale all dimensions to new value."""
+        # TODO: how to type this correctly?
         data = self.data
         try:
             dim = data[unit]
@@ -839,14 +852,20 @@ class Dimensions(UserDict[str, DimensionT]):
             data[unit] = value
             return
         try:
-            scale = value / dim  # type: ignore
+            scale = value / dim  # type: ignore[operator]
             for k, v in data.items():
                 data[k] = v * scale
         except TypeError:
-            scale = tuple(v / d for v, d in zip(value, dim))  # type: ignore
+            scale = tuple(
+                v / d
+                for v, d in zip(value, dim)  # type: ignore[call-overload]
+            )
             for k, v in data.items():
-                data[k] = tuple(  # type: ignore
-                    v * s for v, s in zip(data[k], scale)  # type: ignore
+                data[k] = tuple(  # type: ignore[assignment]
+                    v * s
+                    for v, s in zip(
+                        data[k], scale
+                    )  # type: ignore[call-overload]
                 )
 
     def __repr__(self) -> str:
@@ -864,7 +883,7 @@ class Dimensions(UserDict[str, DimensionT]):
             for k, f in zip(keys, formatstr):
                 v = self[k]
                 t = []
-                for i in v:  # type: ignore
+                for i in v:  # type: ignore[attr-defined]
                     t.append(f % i)
                 s.append('({}) {}'.format(', '.join(t), k))
         return ', '.join(s)
@@ -980,21 +999,23 @@ def enumstr(enum: Any, /) -> str:
     name = enum.name
     if name is None:
         name = str(enum)
-    return name
+    return name  # type: ignore[no-any-return]
 
 
 def imshow(
-    subplot,
-    data,
-    title=None,
-    sharex=None,
-    sharey=None,
-    vmin=-2.5,
-    vmax=0.0,
-    cmap=None,
-    interpolation='lanczos',
-    **kwargs,
-):
+    subplot: Any,
+    data: ArrayLike,
+    /,
+    *,
+    title: str | None = None,
+    sharex: Axes | None = None,
+    sharey: Axes | None = None,
+    vmin: float = -2.5,
+    vmax: float = 0.0,
+    cmap: Any = None,
+    interpolation: str = 'lanczos',
+    **kwargs: Any,
+) -> tuple[Axes, AxesImage]:
     """Log-plot image using matplotlib.pyplot. Return plot axis and plot.
 
     Mirror symmetry is applied along the x and y axes.
