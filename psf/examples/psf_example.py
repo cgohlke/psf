@@ -93,10 +93,10 @@ def psf_example(
     obsvol.imshow(243, sharex=ax, sharey=ax, cmap=cmap)
     gauss.imshow(244, sharex=ax, sharey=ax, cmap=cmap)
     i = 0
-    psf.imshow(245, data=expsf.slice(i), sharex=ax, cmap=cmap)
-    psf.imshow(246, data=empsf.slice(i), sharex=ax, cmap=cmap)
-    psf.imshow(247, data=obsvol.slice(i), sharex=ax, cmap=cmap)
-    psf.imshow(248, data=gauss.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(245, expsf.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(246, empsf.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(247, obsvol.slice(i), sharex=ax, cmap=cmap)
+    psf.imshow(248, gauss.slice(i), sharex=ax, cmap=cmap)
 
     # plot cross sections
     z = numpy.arange(0, gauss.dims.ou[0], gauss.dims.ou[0] / gauss.dims.px[0])
@@ -116,7 +116,7 @@ def psf_example(
     pyplot.plot(z, obsvol[:, 0], 'c-', label=obsvol.name + ' (z)')
     pyplot.plot(z, gauss[:, 0], 'c:', label='')
     pyplot.legend()
-    pyplot.axis([0, zr_max, 0, 1])
+    pyplot.axis((0, zr_max, 0, 1))
     pyplot.subplot(212)
     pyplot.title('Residuals of gaussian approximation')
     pyplot.plot(r, expsf[0] - gauss2[0], 'r-', label=expsf.name + ' (r)')
@@ -125,7 +125,7 @@ def psf_example(
     pyplot.plot(
         z, obsvol[:, 0] - gauss[:, 0], 'c-', label=obsvol.name + ' (z)'
     )
-    pyplot.axis([0, zr_max, -0.25, 0.25])
+    pyplot.axis((0, zr_max, -0.25, 0.25))
     pyplot.tight_layout()
 
     pyplot.show()
