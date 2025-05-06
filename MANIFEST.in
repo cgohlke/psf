@@ -1,6 +1,7 @@
 include LICENSE
 include README.rst
 include CHANGES.rst
+include pyproject.toml
 
 include psf/py.typed
 include psf/psf.c
