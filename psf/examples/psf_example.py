@@ -7,19 +7,23 @@ for fluorescence microscopy.
 
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 import numpy
 import psf
 from matplotlib import pyplot
 
 
 def psf_example(
-    cmap='hot',
-    savebin=False,
-    savetif=False,
-    savevol=False,
-    plot=True,
-    **kwargs,
-):
+    cmap: str = 'hot',
+    savebin: bool = False,
+    savetif: bool = False,
+    savevol: bool = False,
+    plot: bool = True,
+    **kwargs: Any,
+) -> None:
     """Calculate, save, and plot various point spread functions."""
     args = {
         'shape': (512, 512),  # number of samples in z and r direction
@@ -34,12 +38,14 @@ def psf_example(
     }
     args.update(kwargs)
 
-    obsvol = psf.PSF(psf.ISOTROPIC | psf.CONFOCAL, **args)  # type: ignore
+    obsvol = psf.PSF(
+        psf.ISOTROPIC | psf.CONFOCAL, **args  # type: ignore[arg-type]
+    )
     expsf = obsvol.expsf
     empsf = obsvol.empsf
 
     gauss = gauss2 = psf.PSF(
-        psf.GAUSSIAN | psf.EXCITATION, **args  # type: ignore
+        psf.GAUSSIAN | psf.EXCITATION, **args  # type: ignore[arg-type]
     )
 
     assert expsf is not None
