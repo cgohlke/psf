@@ -40,10 +40,10 @@ Refer to the psf.py module for a high level API, documentation, and tests.\n\
 \n\
 :Authors: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
 :License: BSD 3-Clause\n\
-:Version: 2025.1.1\n\
+:Version: 2025.8.1\n\
 "
 
-#define _VERSION_ "2025.1.1"
+#define _VERSION_ "2025.8.1"
 
 #define WIN32_LEAN_AND_MEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -1238,6 +1238,14 @@ PyInit__psf(void)
     if (module == NULL) {
         return NULL;
     }
+
+#ifdef Py_GIL_DISABLED
+    /* this module supports running with the GIL disabled */
+    if (PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED) < 0) {
+        Py_DECREF(module);
+        return NULL;
+    }
+#endif
 
     if (_import_array() < 0) {
         Py_DECREF(module);
