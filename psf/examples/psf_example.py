@@ -12,8 +12,9 @@ from __future__ import annotations
 from typing import Any
 
 import numpy
-import psf
 from matplotlib import pyplot
+
+import psf
 
 
 def psf_example(
@@ -115,7 +116,7 @@ def psf_example(
     pyplot.plot(r, gauss2[0], 'r:', label='')
     # pyplot.plot(r, empsf.data[0], 'g--', label=empsf.name+' (r)')
     pyplot.plot(r, obsvol[0], 'b-', label=obsvol.name + ' (r)')
-    pyplot.plot(r, gauss[0], 'b:', label="")
+    pyplot.plot(r, gauss[0], 'b:', label='')
     pyplot.plot(z, expsf[:, 0], 'm-', label=expsf.name + ' (z)')
     pyplot.plot(z, gauss2[:, 0], 'm:', label='')
     # pyplot.plot(z, empsf.data[:,0], 'g--', label=empsf.name+' (z)')
