@@ -1,7 +1,7 @@
 /* psf.c */
 
 /*
-Copyright (c) 2007-2025, Christoph Gohlke
+Copyright (c) 2007-2026, Christoph Gohlke
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,13 +40,13 @@ Refer to the psf.py module for a high level API, documentation, and tests.\n\
 \n\
 :Authors: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
 :License: BSD 3-Clause\n\
-:Version: 2025.8.1\n\
+:Version: 2026.1.18\n\
 "
 
-#define _VERSION_ "2025.8.1"
+#define _VERSION_ "2026.1.18"
 
 #define WIN32_LEAN_AND_MEAN
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
 
 #include "Python.h"
 #include "math.h"
@@ -74,6 +74,8 @@ Refer to the psf.py module for a high level API, documentation, and tests.\n\
 
 /* lookup table for Bessel function of the first kind, orders 0, 1, and 2 */
 double bessel_lut[BESSEL_LEN*3];
+
+static int bessel_initialized = 0;
 
 /*****************************************************************************/
 /* C functions
@@ -133,12 +135,18 @@ void bessel_lookup(double x, double* result)
     double alpha = x * BESSEL_RES;
     int index = floor_int(alpha);
 
-    if (index < BESSEL_LEN) {
+    if ((index >= 0) && (index < BESSEL_LEN - 1)) {
         p = &bessel_lut[index*3];
         alpha -= (double)index;
         result[0] = p[0] + alpha * (p[3] - p[0]);
         result[1] = p[1] + alpha * (p[4] - p[1]);
         result[2] = p[2] + alpha * (p[5] - p[2]);
+    } else if (index == BESSEL_LEN - 1) {
+        /* use last table entry without interpolation */
+        p = &bessel_lut[(BESSEL_LEN - 1)*3];
+        result[0] = p[0];
+        result[1] = p[1];
+        result[2] = p[2];
     } else {
         result[0] = result[1] = result[2] = 0.0;
     }
@@ -153,7 +161,9 @@ int bessel_init(void)
     int i, j;
     double x, t, xst, dt, *ptr;
 
-    memset(bessel_lut, 0, BESSEL_LEN*3*sizeof(double));
+    if (bessel_initialized) {
+        return 0;
+    }
 
     dt = M_PI / (BESSEL_INT);
     ptr = bessel_lut;
@@ -181,6 +191,7 @@ int bessel_init(void)
         *ptr /= BESSEL_INT-1;
         ptr += 3;
     }
+    bessel_initialized = 1;
     return 0;
 }
 
@@ -708,23 +719,13 @@ long PySequence_GetInteger(PyObject *obj, Py_ssize_t i)
 {
     long value;
     PyObject *item = PySequence_GetItem(obj, i);
-    if (item == NULL ||
-#if PY_MAJOR_VERSION < 3
-        !PyInt_Check(item)
-#else
-        !PyLong_Check(item)
-#endif
-        ) {
+    if (item == NULL || !PyLong_Check(item)) {
         PyErr_Format(PyExc_ValueError, "expected integer number");
         Py_XDECREF(item);
         return 0;
     }
 
-#if PY_MAJOR_VERSION < 3
-    value = PyInt_AsLong(item);
-#else
     value = PyLong_AsLong(item);
-#endif
     Py_XDECREF(item);
     return value;
 }
@@ -896,9 +897,9 @@ static PyObject* py_obsvol(
     }
 
     error = obsvol(
-        (int)PyArray_DIM(ex_psf, 0),
-        (int)PyArray_DIM(ex_psf, 1),
-        detector ? (int)PyArray_DIM(detector, 0) : 0,
+        PyArray_DIM(ex_psf, 0),
+        PyArray_DIM(ex_psf, 1),
+        detector ? PyArray_DIM(detector, 0) : 0,
         (double *)PyArray_DATA(out),
         (double *)PyArray_DATA(ex_psf),
         (double *)PyArray_DATA(em_psf),
@@ -959,7 +960,8 @@ static PyObject* py_zr2zxy(
 {
     PyArrayObject *data = NULL;
     PyArrayObject *out = NULL;
-    int error, ndims;
+    int error;
+    int ndims;
     Py_ssize_t shape[3];
 
     static char *kwlist[] = {"data", NULL};
@@ -1019,7 +1021,7 @@ static PyObject* py_pinhole_kernel(
     PyArrayObject *out = NULL;
     int error;
     int corners = 0;
-    int dim = 0;
+    Py_ssize_t dim = 0;
     double radius;
     Py_ssize_t shape[2];
 
@@ -1210,13 +1212,36 @@ static int module_clear(PyObject *m) {
     return 0;
 }
 
+static int module_exec(PyObject *module) {
+    if (bessel_init() != 0) {
+        return -1;
+    }
+    if (_import_array() < 0) {
+        return -1;
+    }
+    PyObject *s = PyUnicode_FromString(_VERSION_);
+    if (!s) return -1;
+    PyObject *dict = PyModule_GetDict(module);
+    if (PyDict_SetItemString(dict, "__version__", s) < 0) {
+        Py_DECREF(s);
+        return -1;
+    }
+    Py_DECREF(s);
+    return 0;
+}
+
+static struct PyModuleDef_Slot module_slots[] = {
+    {Py_mod_exec, module_exec},
+    {0, NULL}
+};
+
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "_psf",
-    NULL,
+    _DOC_,
     sizeof(struct module_state),
     module_methods,
-    NULL,
+    module_slots,
     module_traverse,
     module_clear,
     NULL
@@ -1225,45 +1250,5 @@ static struct PyModuleDef moduledef = {
 PyMODINIT_FUNC
 PyInit__psf(void)
 {
-    PyObject *module;
-
-    char *doc = (char *)PyMem_Malloc(sizeof(_DOC_) + sizeof(_VERSION_));
-    PyOS_snprintf(doc, sizeof(_DOC_) + sizeof(_VERSION_), _DOC_, _VERSION_);
-
-    moduledef.m_doc = doc;
-    module = PyModule_Create(&moduledef);
-
-    PyMem_Free(doc);
-
-    if (module == NULL) {
-        return NULL;
-    }
-
-#ifdef Py_GIL_DISABLED
-    /* this module supports running with the GIL disabled */
-    if (PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED) < 0) {
-        Py_DECREF(module);
-        return NULL;
-    }
-#endif
-
-    if (_import_array() < 0) {
-        Py_DECREF(module);
-        return NULL;
-    }
-
-    {
-    PyObject *s = PyUnicode_FromString(_VERSION_);
-    PyObject *dict = PyModule_GetDict(module);
-    PyDict_SetItemString(dict, "__version__", s);
-    Py_DECREF(s);
-    }
-
-    if (bessel_init() != 0) {
-        PyErr_Format(PyExc_ValueError, "bessel_init function failed");
-        Py_DECREF(module);
-        return NULL;
-    }
-
-    return module;
+    return PyModuleDef_Init(&moduledef);
 }
