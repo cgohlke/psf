@@ -11,7 +11,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2025.8.1
+:Version: 2026.1.18
 
 Quickstart
 ----------
@@ -32,13 +32,18 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.5, 3.14.0rc 64-bit
-- `NumPy <https://pypi.org/project/numpy/>`_ 2.3.2
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.5
+- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
+- `NumPy <https://pypi.org/project/numpy/>`_ 2.4.1
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.8
   (optional for plotting)
 
 Revisions
 ---------
+
+2026.1.18
+
+- Use multi-phase initialization.
+- Improve code quality.
 
 2025.8.1
 
@@ -59,42 +64,9 @@ Revisions
 
 2024.1.6
 
-- Change PSF.TYPES from dict to set (breaking).
+- …
 
-2023.4.26
-
-- Use enums.
-- Derive Dimensions from UserDict.
-- Add type hints.
-- Convert to Google style docstrings.
-- Drop support for Python 3.8 and numpy < 1.21 (NEP29).
-
-2022.9.26
-
-- Fix setup.py.
-
-2022.9.12
-
-- Drop support for Python 3.7 (NEP 29).
-- Update metadata.
-
-2021.6.6
-
-- Drop support for Python 3.6 (NEP 29).
-
-2020.1.1
-
-- Drop support for Python 2.7 and 3.5.
-- Update copyright.
-
-2019.10.14
-
-- Support Python 3.8.
-
-2019.4.22
-
-- Fix setup requirements.
-- Fix compiler warning.
+Refer to the CHANGES file for older revisions.
 
 References
 ----------
