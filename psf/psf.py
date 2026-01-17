@@ -1,6 +1,6 @@
 # psf.py
 
-# Copyright (c) 2007-2025, Christoph Gohlke and Oliver Holub
+# Copyright (c) 2007-2026, Christoph Gohlke and Oliver Holub
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2025.8.1
+:Version: 2026.1.18
 
 Quickstart
 ----------
@@ -59,13 +59,18 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.5, 3.14.0rc 64-bit
-- `NumPy <https://pypi.org/project/numpy/>`_ 2.3.2
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.5
+- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
+- `NumPy <https://pypi.org/project/numpy/>`_ 2.4.1
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.8
   (optional for plotting)
 
 Revisions
 ---------
+
+2026.1.18
+
+- Use multi-phase initialization.
+- Improve code quality.
 
 2025.8.1
 
@@ -86,42 +91,9 @@ Revisions
 
 2024.1.6
 
-- Change PSF.TYPES from dict to set (breaking).
+- …
 
-2023.4.26
-
-- Use enums.
-- Derive Dimensions from UserDict.
-- Add type hints.
-- Convert to Google style docstrings.
-- Drop support for Python 3.8 and numpy < 1.21 (NEP29).
-
-2022.9.26
-
-- Fix setup.py.
-
-2022.9.12
-
-- Drop support for Python 3.7 (NEP 29).
-- Update metadata.
-
-2021.6.6
-
-- Drop support for Python 3.6 (NEP 29).
-
-2020.1.1
-
-- Drop support for Python 2.7 and 3.5.
-- Update copyright.
-
-2019.10.14
-
-- Support Python 3.8.
-
-2019.4.22
-
-- Fix setup requirements.
-- Fix compiler warning.
+Refer to the CHANGES file for older revisions.
 
 References
 ----------
@@ -189,31 +161,32 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2025.8.1'
+__version__ = '2026.1.18'
 
 __all__ = [
-    '__version__',
-    'PSF',
-    'PsfType',
-    'Pinhole',
-    'PinholeShape',
-    'Dimensions',
-    'uv2zr',
-    'zr2uv',
-    'mirror_symmetry',
-    'imshow',
     'ANISOTROPIC',
-    'ISOTROPIC',
+    'CONFOCAL',
+    'EMISSION',
+    'EXCITATION',
     'GAUSSIAN',
     'GAUSSLORENTZ',
-    'EXCITATION',
-    'EMISSION',
-    'WIDEFIELD',
-    'CONFOCAL',
-    'TWOPHOTON',
+    'ISOTROPIC',
     'PARAXIAL',
+    'PSF',
+    'TWOPHOTON',
+    'WIDEFIELD',
+    'Dimensions',
+    'Pinhole',
+    'PinholeShape',
+    'PsfType',
+    '__version__',
+    'imshow',
+    'mirror_symmetry',
+    'uv2zr',
+    'zr2uv',
 ]
 
+import contextlib
 import enum
 import math
 import threading
@@ -225,7 +198,7 @@ import numpy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
-    from typing import Any, TypeVar
+    from typing import Any, ClassVar, TypeVar
 
     from matplotlib.axes import Axes
     from matplotlib.image import AxesImage
@@ -324,7 +297,7 @@ class PSF:
 
     """
 
-    TYPES = {
+    TYPES: ClassVar[set[PsfType]] = {
         ISOTROPIC | EXCITATION,
         ISOTROPIC | EMISSION,
         ISOTROPIC | WIDEFIELD,
@@ -413,9 +386,8 @@ class PSF:
         name: str | None = None,
     ):
         if psftype not in PSF.TYPES:
-            raise ValueError(
-                f'PSF type {psftype!r} is invalid or not supported'
-            )
+            msg = f'PSF type {psftype!r} is invalid or not supported'
+            raise ValueError(msg)
         self.psftype = psftype
         self.name = str(name if name else enumstr(psftype))
         self.shape = int(shape[0]), int(shape[1])
@@ -432,22 +404,26 @@ class PSF:
         self.expsf = expsf
         self.empsf = empsf
 
-        if not (psftype & EXCITATION) and em_wavelen is math.nan:
-            raise ValueError('emission wavelength not specified')
+        if not (psftype & EXCITATION) and math.isnan(em_wavelen):
+            msg = 'emission wavelength not specified'
+            raise ValueError(msg)
 
-        if not (psftype & EMISSION) and ex_wavelen is math.nan:
-            raise ValueError('excitation wavelength not specified')
+        if not (psftype & EMISSION) and math.isnan(ex_wavelen):
+            msg = 'excitation wavelength not specified'
+            raise ValueError(msg)
 
         if psftype & CONFOCAL and pinhole_radius is None:
-            raise ValueError('pinhole radius not specified')
+            msg = 'pinhole radius not specified'
+            raise ValueError(msg)
 
         self.sinalpha = self.num_aperture / self.refr_index
         if self.sinalpha >= 1.0:
-            raise ValueError(
+            msg = (
                 f'quotient of the numeric aperture ({self.num_aperture:.1f}) '
                 f'and refractive index ({self.refr_index:.1f}) is greater '
                 f'than 1.0 ({self.sinalpha:.2f})'
             )
+            raise ValueError(msg)
 
         if psftype & EMISSION:
             au = 1.22 * self.em_wavelen / self.num_aperture
@@ -480,9 +456,8 @@ class PSF:
         if psftype & GAUSSIAN:
             self.sigma = Dimensions(**self.dims)
             if self.underfilling != 1.0:
-                raise NotImplementedError(
-                    'underfilling not supported in Gaussian approximation'
-                )
+                msg = 'underfilling not supported in Gaussian approximation'
+                raise NotImplementedError(msg)
 
             if psftype & EXCITATION or psftype & TWOPHOTON:
                 widefield = True
@@ -509,9 +484,8 @@ class PSF:
                     lex = self.ex_wavelen
                     lem = self.em_wavelen
                 if self.pinhole.shape != PinholeShape.ROUND:
-                    raise NotImplementedError(
-                        'Gaussian approximation only valid for round pinhole'
-                    )
+                    msg = 'Gaussian approximation only valid for round pinhole'
+                    raise NotImplementedError(msg)
 
             paraxial = bool(psftype & PARAXIAL)
             self.sigma.um = _psf.gaussian_sigma(
@@ -554,7 +528,8 @@ class PSF:
                 )
             elif psftype & CONFOCAL or psftype & WIDEFIELD:
                 if em_wavelen < ex_wavelen:
-                    raise ValueError('Excitation > Emission wavelength')
+                    msg = 'Excitation > Emission wavelength'
+                    raise ValueError(msg)
                 # start threads to calculate excitation and emission PSF
                 threads = []
                 if not (
@@ -597,19 +572,20 @@ class PSF:
                             ),
                         )
                     )
-                for a, t in threads:
+                for _a, t in threads:
                     t.start()
                 for a, t in threads:
                     t.join()
                     setattr(self, a, t.psf)
                 if self.expsf is None:
-                    raise ValueError('Excitation PSF is None')
+                    msg = 'Excitation PSF is None'
+                    raise ValueError(msg)
                 if self.empsf is None:
-                    raise ValueError('Emission PSF is None')
+                    msg = 'Emission PSF is None'
+                    raise ValueError(msg)
                 if not self.expsf.iscompatible(self.empsf):
-                    raise ValueError(
-                        'Excitation and emission PSF not compatible'
-                    )
+                    msg = 'Excitation and emission PSF not compatible'
+                    raise ValueError(msg)
                 if psftype & WIDEFIELD or (
                     self.pinhole is not None
                     and self.pinhole.radius.um
@@ -636,17 +612,17 @@ class PSF:
         s.append(f'shape: ({self.dims.px[0]}, {self.dims.px[1]}) pixel')
         dims = self.dims.format(['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f'])
         s.append(f'dimensions: {dims}')
-        if self.ex_wavelen is not math.nan:
+        if not math.isnan(self.ex_wavelen):
             s.append(f'excitation wavelength: {self.ex_wavelen * 1e3:.1f} nm')
-        if self.em_wavelen is not math.nan:
+        if not math.isnan(self.em_wavelen):
             s.append(f'emission wavelength: {self.em_wavelen * 1e3:.1f} nm')
         s.append(f'numeric aperture: {self.num_aperture:.2f}')
         s.append(f'refractive index: {self.refr_index:.2f}')
         angle = math.degrees(math.asin(self.sinalpha))
         s.append(f'half cone angle: {angle:.2f} deg')
-        if self.magnification is not math.nan:
+        if not math.isnan(self.magnification):
             s.append(f'magnification: {self.magnification:.2f}')
-        if self.underfilling is not math.nan:
+        if not math.isnan(self.underfilling):
             s.append(f'underfilling: {self.underfilling:.2f}')
         if self.pinhole:
             pinhole = self.pinhole.radius.format(
@@ -758,12 +734,10 @@ class Pinhole:
         shape: PinholeShape | str,
     ) -> None:
         self.shape = enumarg(PinholeShape, shape)  # type: ignore[assignment]
-        try:
+        with contextlib.suppress(TypeError, IndexError):
             dimensions = {
                 k: v[1] for k, v in dimensions.items()  # type: ignore[index]
             }
-        except (TypeError, IndexError):
-            pass
         self.radius = Dimensions(**dimensions)
         self.radius.um = float(radius)
         self._kernel = None
@@ -832,13 +806,13 @@ class Dimensions(UserDict[str, DimensionT]):
             return tuple(
                 v * (o / u)
                 for v, u, o in zip(
-                    value, dim, new
+                    value, dim, new, strict=False
                 )  # type: ignore[call-overload]
             )  # type: ignore[return-value]
 
     def __getattr__(self, unit: str, /) -> DimensionT:
         if unit == 'data':
-            raise AttributeError()
+            raise AttributeError
         return self.data[unit]
 
     def __setattr__(self, unit: str, value: DimensionT, /) -> None:
@@ -862,13 +836,13 @@ class Dimensions(UserDict[str, DimensionT]):
         except TypeError:
             scale = tuple(
                 v / d
-                for v, d in zip(value, dim)  # type: ignore[call-overload]
+                for v, d in zip(value, dim, strict=False)  # type: ignore[call-overload]
             )
             for k, v in data.items():
                 data[k] = tuple(  # type: ignore[assignment]
                     v * s
                     for v, s in zip(
-                        data[k], scale
+                        data[k], scale, strict=False
                     )  # type: ignore[call-overload]
                 )
 
@@ -880,15 +854,12 @@ class Dimensions(UserDict[str, DimensionT]):
         """Return formatted string."""
         s = []
         try:
-            for k, f in zip(keys, formatstr):
-                f = f % self[k]
-                s.append(f'{f} {k}')
+            for k, f in zip(keys, formatstr, strict=False):
+                s.append(f'{f % self[k]} {k}')
         except TypeError:
-            for k, f in zip(keys, formatstr):
+            for k, f in zip(keys, formatstr, strict=False):
                 v = self[k]
-                t = []
-                for i in v:  # type: ignore[attr-defined]
-                    t.append(f % i)
+                t = [f % i for i in v]  # type: ignore[attr-defined]
                 s.append('({}) {}'.format(', '.join(t), k))
         return ', '.join(s)
 
@@ -959,7 +930,7 @@ def mirror_symmetry(data: ArrayLike, /) -> NDArray[numpy.float64]:
 
     """
     data = numpy.array(data)
-    result = numpy.empty([2 * i - 1 for i in data.shape], numpy.float64)
+    result = numpy.empty(tuple(2 * i - 1 for i in data.shape), numpy.float64)
     if data.ndim == 1:
         x = data.shape[0] - 1
         result[x:] = data
@@ -976,9 +947,8 @@ def mirror_symmetry(data: ArrayLike, /) -> NDArray[numpy.float64]:
         result[:, :y, z:] = result[:, -1:y:-1, z:]
         result[:, :, :z] = result[:, :, -1:z:-1]
     else:
-        raise NotImplementedError(
-            f'{data.ndim}-dimensional arrays not supported'
-        )
+        msg = f'{data.ndim}-dimensional arrays not supported'
+        raise NotImplementedError(msg)
     return result
 
 
@@ -990,7 +960,8 @@ def enumarg(enum: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
         try:
             return enum[arg.upper()]
         except Exception as exc:
-            raise ValueError(f'invalid argument {arg!r}') from exc
+            msg = f'invalid argument {arg!r}'
+            raise ValueError(msg) from exc
 
 
 def enumstr(enum: Any, /) -> str:
