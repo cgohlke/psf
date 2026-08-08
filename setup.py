@@ -2,13 +2,25 @@
 
 """Psf package Setuptools script."""
 
+import os
 import re
 import sys
+import sysconfig
 
 import numpy
 from setuptools import Extension, setup
 
-buildnumber = ''
+LIMITED_API = os.environ.get('CG_LIMITED_API', '1').lower() in {'1', 'true'}
+GIL_DISABLED = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
+
+if LIMITED_API and not GIL_DISABLED:
+    py_limited_api = True
+    define_macros = [('Py_LIMITED_API', 0x030C0000)]
+    setup_options = {'bdist_wheel': {'py_limited_api': 'cp312'}}
+else:
+    py_limited_api = False
+    define_macros = []
+    setup_options = {}
 
 
 def search(pattern: str, string: str, flags: int = 0) -> str:
@@ -42,7 +54,6 @@ with open('psf/psf.py', encoding='utf-8') as fh:
     code = fh.read()
 
 version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev0')
-version += ('.' + buildnumber) if buildnumber else ''
 
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
 
@@ -99,10 +110,10 @@ setup(
     project_urls={
         'Bug Tracker': 'https://github.com/cgohlke/psf/issues',
         'Source Code': 'https://github.com/cgohlke/psf',
-        # 'Documentation': 'https://',
+        # 'Documentation': 'https://www.cgohlke.com/docs/psf/',
     },
-    python_requires='>=3.11',
-    install_requires=['numpy'],
+    python_requires='>=3.12',
+    install_requires=['numpy>=2.1'],
     extras_require={'all': ['matplotlib']},
     packages=['psf'],
     package_data={'psf': ['examples/*.py']},
@@ -111,9 +122,11 @@ setup(
             'psf._psf',
             ['psf/psf.c'],
             include_dirs=[numpy.get_include()],
+            define_macros=define_macros,
+            py_limited_api=py_limited_api,
         )
     ],
-    zip_safe=False,
+    options=setup_options,
     platforms=['any'],
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -122,9 +135,9 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: C',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: 3.14',
+        'Programming Language :: Python :: 3.15',
     ],
 )
