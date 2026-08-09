@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.1.18
+:Version: 2026.8.8
 
 Quickstart
 ----------
@@ -59,13 +59,19 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
-- `NumPy <https://pypi.org/project/numpy/>`_ 2.4.1
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.10.8
+- `CPython <https://www.python.org>`_ 3.12.10, 3.13.15, 3.14.7, 3.15.0rc 64-bit
+- `Numpy <https://pypi.org/project/numpy>`_ 2.5.2
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.11.1
   (optional for plotting)
 
 Revisions
 ---------
+
+2026.8.8
+
+- Make C extension ABI3 and free-threading compatible.
+- Drop support for Python 3.11 and numpy 2.0 (SPEC0).
+- Support Python 3.15.
 
 2026.1.18
 
@@ -161,7 +167,7 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2026.1.18'
+__version__ = '2026.8.8'
 
 __all__ = [
     'ANISOTROPIC',
@@ -389,12 +395,16 @@ class PSF:
             msg = f'PSF type {psftype!r} is invalid or not supported'
             raise ValueError(msg)
         self.psftype = psftype
-        self.name = str(name if name else enumstr(psftype))
+        self.name = str(name or enumstr(psftype))
         self.shape = int(shape[0]), int(shape[1])
         self.dims = Dimensions(px=shape, um=(float(dims[0]), float(dims[1])))
 
-        self.ex_wavelen = ex_wavelen / 1e3 if ex_wavelen else math.nan
-        self.em_wavelen = em_wavelen / 1e3 if em_wavelen else math.nan
+        self.ex_wavelen = (
+            ex_wavelen / 1e3 if not math.isnan(ex_wavelen) else math.nan
+        )
+        self.em_wavelen = (
+            em_wavelen / 1e3 if not math.isnan(em_wavelen) else math.nan
+        )
         self.num_aperture = num_aperture
         self.refr_index = refr_index
         self.magnification = magnification
@@ -463,7 +473,6 @@ class PSF:
                 widefield = True
                 self.em_wavelen = math.nan
                 self.magnification = math.nan
-                self.pinh_radius = None
                 lex = lem = self.ex_wavelen
                 radius = 0.0
             elif psftype & EMISSION or psftype & WIDEFIELD:
@@ -576,6 +585,8 @@ class PSF:
                     t.start()
                 for a, t in threads:
                     t.join()
+                    if t.exception is not None:
+                        raise t.exception
                     setattr(self, a, t.psf)
                 if self.expsf is None:
                     msg = 'Excitation PSF is None'
@@ -679,15 +690,20 @@ class PSFthread(threading.Thread):
     """Calculate point spread function in thread."""
 
     psf: PSF | None
+    exception: BaseException | None
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         threading.Thread.__init__(self)
         self.args = args
         self.kwargs = kwargs
         self.psf = None
+        self.exception = None
 
     def run(self) -> None:
-        self.psf = PSF(*self.args, **self.kwargs)
+        try:
+            self.psf = PSF(*self.args, **self.kwargs)
+        except Exception as exc:
+            self.exception = exc
 
 
 class Pinhole:
@@ -705,7 +721,7 @@ class Pinhole:
     Examples:
         >>> ph = Pinhole(0.1, dict(px=16, um=1.0), 'round')
         >>> ph
-        Pinhole(1, Dimensions(px=1.6, um=0.1), 'ROUND')
+        Pinhole(0.1, Dimensions(px=1.6, um=0.1), 'ROUND')
         >>> ph.shape
         <PinholeShape.ROUND: 0>
         >>> ph.radius.px
@@ -749,7 +765,7 @@ class Pinhole:
         return self._kernel
 
     def __repr__(self) -> str:
-        params = f'1, {self.radius}, {self.shape.name!r}'
+        params = f'{self.radius.um}, {self.radius}, {self.shape.name!r}'
         return f'{self.__class__.__name__}({params})'
 
 
@@ -952,28 +968,28 @@ def mirror_symmetry(data: ArrayLike, /) -> NDArray[numpy.float64]:
     return result
 
 
-def enumarg(enum: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
+def enumarg(enumtype: type[enum.IntEnum], arg: Any, /) -> enum.IntEnum:
     """Return enum member from its name or value."""
     try:
-        return enum(arg)
+        return enumtype(arg)
     except Exception:
         try:
-            return enum[arg.upper()]
+            return enumtype[arg.upper()]
         except Exception as exc:
             msg = f'invalid argument {arg!r}'
             raise ValueError(msg) from exc
 
 
-def enumstr(enum: Any, /) -> str:
+def enumstr(member: Any, /) -> str:
     """Return short string representation of Enum member.
 
     >>> enumstr(PsfType.ANISOTROPIC)
     'ANISOTROPIC'
 
     """
-    name = enum.name
+    name = member.name
     if name is None:
-        name = str(enum)
+        name = str(member)
     return name  # type: ignore[no-any-return]
 
 
@@ -1020,10 +1036,3 @@ def imshow(
     )
     pyplot.axis('off')
     return ax, im
-
-
-if __name__ == '__main__':
-    import doctest
-
-    numpy.set_printoptions(suppress=True, precision=5)
-    doctest.testmod(optionflags=doctest.ELLIPSIS)
