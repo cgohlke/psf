@@ -38,22 +38,23 @@ for the psf package.\n\
 \n\
 Refer to the psf.py module for a high level API, documentation, and tests.\n\
 \n\
-:Authors: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
+:Author: `Christoph Gohlke <https://www.cgohlke.com>`_\n\
 :License: BSD 3-Clause\n\
-:Version: 2026.1.18\n\
+:Version: 2026.8.8\n\
 "
 
-#define _VERSION_ "2026.1.18"
+#define _VERSION_ "2026.8.8"
 
+#define PY_SSIZE_T_CLEAN
 #define WIN32_LEAN_AND_MEAN
-#define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
+#define NPY_NO_DEPRECATED_API NPY_2_1_API_VERSION
 
 #include "Python.h"
-#include "math.h"
-#include "float.h"
-#include "string.h"
+#include <stdlib.h>
+#include <math.h>
+#include <float.h>
+#include <string.h>
 #include "numpy/arrayobject.h"
-#include "numpy/ufuncobject.h"
 
 #if defined(_MSC_VER) && (_MSC_VER < 1600) && defined(_WIN64)
 #define llabs _abs64
@@ -66,20 +67,18 @@ Refer to the psf.py module for a high level API, documentation, and tests.\n\
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define SWAP(a, b) { register double t = (a); (a) = (b); (b) = t; }
 
 #define BESSEL_LEN 1001 /* length of Bessel function lookup table */
 #define BESSEL_RES 10.0 /* resolution of Bessel function lookup table */
 #define BESSEL_INT 60   /* steps for integrating the Bessel integral */
 
 /* lookup table for Bessel function of the first kind, orders 0, 1, and 2 */
-double bessel_lut[BESSEL_LEN*3];
+double bessel_lut[BESSEL_LEN * 3];
 
 static int bessel_initialized = 0;
 
 /*****************************************************************************/
-/* C functions
-*/
+/* C functions */
 
 /*
 Fast rounding of floating point to integer numbers.
@@ -129,25 +128,29 @@ int ceil_int(double x)
 Return Bessel function at x for orders 0, 1, and 2.
 Values are linearly interpolated from the lookup table.
 */
-void bessel_lookup(double x, double* result)
+void bessel_lookup(
+    double x,
+    double* result)
 {
     double* p;
     double alpha = x * BESSEL_RES;
     int index = floor_int(alpha);
 
     if ((index >= 0) && (index < BESSEL_LEN - 1)) {
-        p = &bessel_lut[index*3];
+        p = &bessel_lut[index * 3];
         alpha -= (double)index;
         result[0] = p[0] + alpha * (p[3] - p[0]);
         result[1] = p[1] + alpha * (p[4] - p[1]);
         result[2] = p[2] + alpha * (p[5] - p[2]);
-    } else if (index == BESSEL_LEN - 1) {
+    }
+    else if (index == BESSEL_LEN - 1) {
         /* use last table entry without interpolation */
-        p = &bessel_lut[(BESSEL_LEN - 1)*3];
+        p = &bessel_lut[(BESSEL_LEN - 1) * 3];
         result[0] = p[0];
         result[1] = p[1];
         result[2] = p[2];
-    } else {
+    }
+    else {
         result[0] = result[1] = result[2] = 0.0;
     }
 }
@@ -173,22 +176,22 @@ int bessel_init(void)
             t = j * dt;
             xst = x * sin(t);
             ptr[0] += cos(xst);
-            ptr[2] += cos(2.0*t + xst);
+            ptr[2] += cos(2.0 * t + xst);
         }
         ptr[0] /= BESSEL_INT;
         ptr[2] /= BESSEL_INT;
         ptr += 3;
     }
 
-    dt = M_PI / (BESSEL_INT-1);
-    ptr = bessel_lut+1;
+    dt = M_PI / (BESSEL_INT - 1);
+    ptr = bessel_lut + 1;
     for (i = 0; i < BESSEL_LEN; i++) {
         x = (double)i / BESSEL_RES;
         for (j = 0; j < BESSEL_INT; j++) {
             t = j * dt;
-            *ptr += cos(t - x*sin(t));
+            *ptr += cos(t - x * sin(t));
         }
-        *ptr /= BESSEL_INT-1;
+        *ptr /= BESSEL_INT - 1;
         ptr += 3;
     }
     bessel_initialized = 1;
@@ -198,7 +201,10 @@ int bessel_init(void)
 /*
 Calculate 2D Gaussian distribution.
 */
-int gaussian2d(double *out, Py_ssize_t* shape, double* sigma)
+int gaussian2d(
+    double *out,
+    Py_ssize_t* shape,
+    double* sigma)
 {
     Py_ssize_t z, r;
     double sz, sr, t;
@@ -206,13 +212,13 @@ int gaussian2d(double *out, Py_ssize_t* shape, double* sigma)
     if ((out == NULL) || (sigma[0] == 0.0) || (sigma[1] == 0.0))
         return -1;
 
-    sz = -0.5 / (sigma[0]*sigma[0]);
-    sr = -0.5 / (sigma[1]*sigma[1]);
+    sz = -0.5 / (sigma[0] * sigma[0]);
+    sr = -0.5 / (sigma[1] * sigma[1]);
 
     for (z = 0; z < shape[0]; z++) {
         t = (double)z * (double)z * sz;
         for (r = 0; r < shape[1]; r++) {
-            *out++ = exp(t + r*r*sr);
+            *out++ = exp(t + r * r * sr);
         }
     }
     return 0;
@@ -221,32 +227,53 @@ int gaussian2d(double *out, Py_ssize_t* shape, double* sigma)
 /*
 Calculate Gaussian parameters for the nonparaxial widefield case.
 */
-void sigma_widefield(double* sz, double* sr, double nk, double cosa)
+void sigma_widefield(
+    double* sz,
+    double* sr,
+    double nk,
+    double cosa)
 {
     double t = pow(cosa, 1.5);
-    *sr = 1.0 / (nk * sqrt((4. - 7.*t + 3.*pow(cosa, 3.5)) / (7.*(1. - t))));
-    *sz = (5.*sqrt(7.)*(1. - t)) / (nk * sqrt(6.*(4.*pow(cosa, 5) -
-                     25.*pow(cosa, 3.5) + 42.*pow(cosa, 2.5) - 25.*t + 4.)));
+    *sr = 1.0 / (nk * sqrt(
+        (4. - 7. * t + 3. * pow(
+            cosa,
+            3.5
+            )) / (7. * (1. - t))
+    ));
+    *sz = (5. * sqrt(7.) * (1. - t)) / (nk * sqrt(
+        6. * (4. * pow(cosa, 5) -
+            25. * pow(cosa, 3.5) + 42. * pow(cosa, 2.5) - 25. * t + 4.)
+    ));
 }
 
 /*
 Calculate Gaussian parameters for point spread function approximation
 according to B Zhang et al. Appl. Optics (46) 1819-29, 2007.
 */
-int gaussian_sigma(double* sz, double* sr, double lex, double lem,
-                   double NA, double n, double r, int widefield, int paraxial)
+int gaussian_sigma(
+    double* sz,
+    double* sr,
+    double lex,
+    double lem,
+    double NA,
+    double n,
+    double r,
+    int widefield,
+    int paraxial)
 {
-    if ((NA <= 0.0) || (n <= 0.0) || (lem <= 0.0) || ((NA/n) >= 1.0))
+    if ((NA <= 0.0) || (n <= 0.0) || (lem <= 0.0) || ((NA / n) >= 1.0))
         return -1;
 
     if (widefield) {
         if (paraxial) {
             *sr = sqrt(2.) * lem / (M_2PI * NA);
-            *sz = sqrt(6.) * lem / (M_2PI * NA*NA) * n * 2.;
-        } else {
-            sigma_widefield(sz, sr, n*M_2PI/lem, cos(asin(NA/n)));
+            *sz = sqrt(6.) * lem / (M_2PI * NA * NA) * n * 2.;
         }
-    } else {
+        else {
+            sigma_widefield(sz, sr, n * M_2PI / lem, cos(asin(NA / n)));
+        }
+    }
+    else {
         if ((r <= 0.0) || (lex <= 0.0))
             return -1;
         if (paraxial) {
@@ -257,20 +284,27 @@ int gaussian_sigma(double* sz, double* sr, double lex, double lem,
             bessel_lookup(c2, J);
             J0 = J[0];
             J1 = J[1];
-            *sr = sqrt(2./(c1*c1/(r*r) +
-                (4.*c2*J0*J1 - 8.*J1*J1) / (r*r*(J0*J0 + J1*J1 - 1.))));
-            *sz = 2.*sqrt(6./((c1*c1*NA*NA)/(r*r*n*n) -
-                (48.*c2*c2*(J0*J0 + J1*J1) - 192.*J1*J1) /
-                (n*n*kem*kem*r*r*r*r*(J0*J0 + J1*J1 - 1.))));
-        } else {
+            *sr = sqrt(
+                2. / (c1 * c1 / (r * r) +
+                    (4. * c2 * J0 * J1 - 8. * J1 * J1) /
+                    (r * r * (J0 * J0 + J1 * J1 - 1.)))
+            );
+            *sz = 2. * sqrt(
+                6. / ((c1 * c1 * NA * NA) / (r * r * n * n) -
+                    (48. * c2 * c2 * (J0 * J0 + J1 * J1) - 192. * J1 * J1) /
+                    (n * n * kem * kem * r * r * r * r *
+                        (J0 * J0 + J1 * J1 - 1.)))
+            );
+        }
+        else {
             double e, sz_em, sr_em, sz_ex, sr_ex;
-            double cosa = cos(asin(NA/n));
-            sigma_widefield(&sz_ex, &sr_ex, n*M_2PI/lex, cosa);
-            sigma_widefield(&sz_em, &sr_em, n*M_2PI/lem, cosa);
-            e = sr_em*sr_em;
-            e = 2.0 * e*e * (exp(r*r/(2.0*e)) - 1.0);
-            *sr = sqrt((sr_ex*sr_ex * e) / (e + r*r * sr_ex*sr_ex));
-            *sz = sz_ex*sz_em / sqrt(sz_ex*sz_ex + sz_em*sz_em);
+            double cosa = cos(asin(NA / n));
+            sigma_widefield(&sz_ex, &sr_ex, n * M_2PI / lex, cosa);
+            sigma_widefield(&sz_em, &sr_em, n * M_2PI / lem, cosa);
+            e = sr_em * sr_em;
+            e = 2.0 * e * e * (exp(r * r / (2.0 * e)) - 1.0);
+            *sr = sqrt((sr_ex * sr_ex * e) / (e + r * r * sr_ex * sr_ex));
+            *sz = sz_ex * sz_em / sqrt(sz_ex * sz_ex + sz_em * sz_em);
         }
     }
     return 0;
@@ -279,18 +313,28 @@ int gaussian_sigma(double* sz, double* sr, double lex, double lem,
 /*
 Apodization function for excitation.
 */
-double apodization_excitation(double ct, double st, double _, double beta)
+double apodization_excitation(
+    double ct,
+    double st,
+    double mag,
+    double beta)
 {
-    return sqrt(ct) * exp(st*st * beta);
+    (void)mag;
+    return sqrt(ct) * exp(st * st * beta);
 }
 
 /*
 Apodization function for isotropic fluorescence emission.
 */
-double apodization_emission(double ct, double st, double M, double _)
+double apodization_emission(
+    double ct,
+    double st,
+    double M,
+    double beta)
 {
-    double t = M*st;
-    return sqrt(ct / sqrt(1.0 - t*t));
+    double t = M * st;
+    (void)beta;
+    return sqrt(ct / sqrt(1.0 - t * t));
 }
 
 /*
@@ -308,7 +352,7 @@ int psf(
     double beta,     /* underfilling ratio (1.0) */
     double gamma,    /* ex_wavelen / em_wavelen / refractive index (1.0) */
     int intsteps     /* number of steps for integrating over theta (50) */
-    )
+)
 {
     Py_ssize_t i, j, k, u_shape, v_shape;
     double u, v, t, st, ct, re, im, re0, im0, re1, im1, re2, im2;
@@ -316,16 +360,22 @@ int psf(
     double alpha; /* integration over theta upper limit */
     double delta; /* step size for integrating over theta */
     double *cache, *cptr, *dptr;
-    double (*apodization)(double, double, double, double);
+    double (*apodization)(
+        double,
+        double,
+        double,
+        double
+    );
 
     if ((intsteps < 4) || (sinalpha <= 0.0) || (sinalpha >= 1.0))
         return -1;
 
-    switch (type) {
+    switch (type)
+    {
         case 0: /* excitation */
             apodization = apodization_excitation;
             alpha = asin(sinalpha);
-            beta = -beta*beta / (sinalpha*sinalpha);
+            beta = -beta * beta / (sinalpha * sinalpha);
             gamma = M = 1.0;
             break;
         case 1: /* emission */
@@ -337,9 +387,9 @@ int psf(
             return -1;
     }
 
-    delta = alpha / (double)(intsteps-1);
+    delta = alpha / (double)(intsteps - 1);
 
-    cptr = (double *)malloc((intsteps*5)*sizeof(double));
+    cptr = (double *)malloc((intsteps * 5) * sizeof(double));
     if (cptr == NULL)
         return -1;
     cache = cptr;
@@ -363,8 +413,8 @@ int psf(
 
     u_shape = shape[0];
     v_shape = shape[1];
-    u_delta = uvdim[0] / (double)(u_shape-1);
-    v_delta = uvdim[1] / (double)(v_shape-1);
+    u_delta = uvdim[0] / (double)(u_shape - 1);
+    v_delta = uvdim[1] / (double)(v_shape - 1);
     dptr = data;
 
     for (i = 0; i < u_shape; i++) {
@@ -376,34 +426,36 @@ int psf(
             /* integrate over theta using trapezoid rule */
             bessel_lookup(v * cptr[0], bessel);
             ct = u * cptr[1]; re = cos(ct); im = sin(ct);
-            t = bessel[0]*cptr[2]*0.5; re0 += re*t; im0 += im*t;
-            t = bessel[1]*cptr[3]*0.5; re1 += re*t; im1 += im*t;
-            t = bessel[2]*cptr[4]*0.5; re2 += re*t; im2 += im*t;
+            t = bessel[0] * cptr[2] * 0.5; re0 += re * t; im0 += im * t;
+            t = bessel[1] * cptr[3] * 0.5; re1 += re * t; im1 += im * t;
+            t = bessel[2] * cptr[4] * 0.5; re2 += re * t; im2 += im * t;
             cptr += 5;
-            for (k = 1; k < intsteps-1; k++) {
+            for (k = 1; k < intsteps - 1; k++) {
                 bessel_lookup(v * cptr[0], bessel);
                 ct = u * cptr[1];
                 re = cos(ct); /* complex exponential with re=0 */
                 im = sin(ct);
-                t = bessel[0]*cptr[2]; re0 += re*t; im0 += im*t;
-                t = bessel[1]*cptr[3]; re1 += re*t; im1 += im*t;
-                t = bessel[2]*cptr[4]; re2 += re*t; im2 += im*t;
+                t = bessel[0] * cptr[2]; re0 += re * t; im0 += im * t;
+                t = bessel[1] * cptr[3]; re1 += re * t; im1 += im * t;
+                t = bessel[2] * cptr[4]; re2 += re * t; im2 += im * t;
                 cptr += 5;
             }
             bessel_lookup(v * cptr[0], bessel);
             ct = u * cptr[1]; re = cos(ct); im = sin(ct);
-            t = bessel[0]*cptr[2]*0.5; re0 += re*t; im0 += im*t;
-            t = bessel[1]*cptr[3]*0.5; re1 += re*t; im1 += im*t;
-            t = bessel[2]*cptr[4]*0.5; re2 += re*t; im2 += im*t;
+            t = bessel[0] * cptr[2] * 0.5; re0 += re * t; im0 += im * t;
+            t = bessel[1] * cptr[3] * 0.5; re1 += re * t; im1 += im * t;
+            t = bessel[2] * cptr[4] * 0.5; re2 += re * t; im2 += im * t;
 
-            *dptr++ = (re0*re0 + im0*im0 +
-                       re1*re1 + im1*im1 +
-                       re2*re2 + im2*im2);
+            *dptr++ = (re0 * re0 + im0 * im0 +
+                re1 * re1 + im1 * im1 +
+                re2 * re2 + im2 * im2);
         }
     }
     t = data[0];
-    for (i = 0; i < u_shape*v_shape; i++)
-        data[i] /= t;
+    if (t != 0.0) {
+        for (i = 0; i < u_shape * v_shape; i++)
+            data[i] /= t;
+    }
 
     free(cache);
     return 0;
@@ -444,66 +496,69 @@ int obsvol(
                 obsvol[i] = ex_psf[i] * sum;
             }
         }
-    } else if (dimd < 2) {
+    }
+    else if (dimd < 2) {
         /* approximation for very small pinholes */
-        for (i = 0; i < dimz*dimr; i++) {
+        for (i = 0; i < dimz * dimr; i++) {
             obsvol[i] = ex_psf[i] * em_psf[i];
         }
-    } else {
+    }
+    else {
         /* use detector/pinhole kernel */
         if (dimd > dimr) dimd = dimr;
         /* floor integer and remainder float of radius at xy */
-        _ri = (Py_ssize_t *)malloc((dimr*dimd)*sizeof(Py_ssize_t));
+        _ri = (Py_ssize_t *)malloc((dimr * dimd) * sizeof(Py_ssize_t));
         if (_ri == NULL)
             return -1;
-        _rf = (double *)malloc((dimr*dimd)*sizeof(double));
+        _rf = (double *)malloc((dimr * dimd) * sizeof(double));
         if (_rf == NULL) {
             free(_ri);
             return -1;
         }
         /* em_psf at xy */
-        _em = (double *)malloc((dimr*dimd)*sizeof(double));
+        _em = (double *)malloc((dimr * dimd) * sizeof(double));
         if (_em == NULL) {
             free(_ri); free(_rf);
             return -1;
         }
 
         for (x = 0; x < dimd; x++) {
-            x2 = (double)(x*x);
+            x2 = (double)(x * x);
             indey = x;
-            index = x*dimd;
+            index = x * dimd;
             _ri[index] = _ri[indey] = x;
             _rf[index] = _rf[indey] = 0.0;
             for (y = 1; y <= x; y++) {
                 index++;
                 indey += dimd;
-                rf = sqrt(x2 + y*y);
+                rf = sqrt(x2 + y * y);
                 ri = floor_int(rf);
                 _ri[index] = _ri[indey] = (dimr > ri) ? ri : -1;
-                _rf[index] = _rf[indey] = (dimr > ri+1) ? rf-(double)ri : 0.0;
+                _rf[index] = _rf[indey] = (dimr >
+                    ri + 1) ? rf - (double)ri : 0.0;
             }
         }
         for (x = dimd; x < dimr; x++) {
-            index = x*dimd;
+            index = x * dimd;
             _ri[index] = x;
             _rf[index] = 0.0;
-            x2 = (double)(x*x);
+            x2 = (double)(x * x);
             for (y = 1; y < dimd; y++) {
                 index++;
-                rf = sqrt(x2 + y*y);
+                rf = sqrt(x2 + y * y);
                 ri = floor_int(rf);
                 _ri[index] = (dimr > ri) ? ri : -1;
-                _rf[index] = (dimr > ri+1) ? rf-(double)ri : 0.0;
+                _rf[index] = (dimr > ri + 1) ? rf - (double)ri : 0.0;
             }
         }
         for (z = 0; z < dimz; z++) {
-            exptr = &ex_psf[z*dimr];
-            emptr = &em_psf[z*dimr];
-            ovptr = &obsvol[z*dimr];
+            exptr = &ex_psf[z * dimr];
+            emptr = &em_psf[z * dimr];
+            ovptr = &obsvol[z * dimr];
             /* emission psf in xy space */
             for (x = 0; x < dimd; x++) {
                 indey = x;
-                index = x*dimd;
+                index = x * dimd;
                 _em[index] = _em[indey] = emptr[x];
                 for (y = 1; y <= x; y++) {
                     index++;
@@ -512,24 +567,27 @@ int obsvol(
                     if (ri >= 0) {
                         rf = _rf[index];
                         _em[index] = _em[indey] =
-                            rf ? emptr[ri]+rf*(emptr[ri+1]-emptr[ri])
+                            rf ? emptr[ri] + rf * (emptr[ri + 1] - emptr[ri])
                                : emptr[ri];
-                    } else {
+                    }
+                    else {
                         _em[index] = _em[indey] = 0.0;
                     }
                 }
             }
             for (x = dimd; x < dimr; x++) {
-                index = x*dimd;
+                index = x * dimd;
                 _em[index] = emptr[x];
                 for (y = 1; y < dimd; y++) {
                     index++;
                     ri = _ri[index];
                     if (ri >= 0) {
                         rf = _rf[index];
-                        _em[index] = rf ? emptr[ri]+rf*(emptr[ri+1]-emptr[ri])
+                        _em[index] = rf ? emptr[ri] + rf *
+                            (emptr[ri + 1] - emptr[ri])
                                         : emptr[ri];
-                    } else {
+                    }
+                    else {
                         _em[index] = 0.0;
                     }
                 }
@@ -539,11 +597,11 @@ int obsvol(
                 For large kernels this is inefficient and should be
                 replaced by a FFT based algorithm. */
                 sum = 0.0;
-                i = 1-dimd + (_dimd-dimd);
-                for (x = r-dimd+1; x < MIN(r+dimd, dimr); x++) {
+                i = 1 - dimd + (_dimd - dimd);
+                for (x = r - dimd + 1; x < MIN(r + dimd, dimr); x++) {
 #if (SIZEOF_SIZE_T == 4)
-                    xx = abs(x) * dimd;
-                    ii = abs(i++) * _dimd;
+                    xx = labs(x) * dimd;
+                    ii = labs(i++) * _dimd;
 #else
                     xx = llabs(x) * dimd;
                     ii = llabs(i++) * _dimd;
@@ -563,8 +621,10 @@ int obsvol(
 
     /* normalize maximum intensity */
     t = obsvol[0];
-    for (i = 0; i < dimz*dimr; i++)
-        obsvol[i] /= t;
+    if (t != 0.0) {
+        for (i = 0; i < dimz * dimr; i++)
+            obsvol[i] /= t;
+    }
 
     return 0;
 }
@@ -576,50 +636,55 @@ The radius denotes the outer radius, except for square shape, where it denotes
 the inner radius.
 
 */
-int pinhole_kernel(int corners, double* out, Py_ssize_t dim, double radius)
+int pinhole_kernel(
+    int corners,
+    double* out,
+    Py_ssize_t dim,
+    double radius)
 {
     Py_ssize_t i, j, k;
     double alpha, t;
 
-    for (i = 0; i < dim*dim; i++)
+    for (i = 0; i < dim * dim; i++)
         out[i] = 1.0;
 
-    switch (corners) {
+    switch (corners)
+    {
         case 0: /* round pinhole */
             /* fill corner */
-            t = sqrt(2.0 * dim*dim) - dim;
+            t = sqrt(2.0 * dim * dim) - dim;
             t = t / sqrt(2.0);
             k = dim - ceil_int(t);
             for (i = k; i < dim; i++)
                 for (j = k; j < dim; j++)
-                    out[i*dim+j] = 0.0;
+                    out[i * dim + j] = 0.0;
             /* draw antialiased arc using eightfold symmetry */
-            for (j = 0; j <= floor_int((dim-1)/sqrt(2)); j++) {
-                k = ceil_int(sqrt(radius*radius - (double)(j*j)));
-                alpha = 1.0 - (sqrt((double)(k*k + j*j)) - radius);
+            for (j = 0; j <= floor_int((dim - 1) / sqrt(2)); j++) {
+                k = ceil_int(sqrt(radius * radius - (double)(j * j)));
+                alpha = 1.0 - (sqrt((double)(k * k + j * j)) - radius);
                 alpha *= 0.5;
-                out[k*dim+j] = out[j*dim+k] = alpha;
+                out[k * dim + j] = out[j * dim + k] = alpha;
                 if (k > 0) {
                     k--;
-                    alpha = radius - sqrt((double)(k*k + j*j));
+                    alpha = radius - sqrt((double)(k * k + j * j));
                     alpha = 0.5 + 0.5 * alpha;
-                    out[k*dim+j] = out[j*dim+k] = alpha;
+                    out[k * dim + j] = out[j * dim + k] = alpha;
                 }
-                for (i = k+2; i < dim; i++) {
-                    out[i*dim+j] = out[j*dim+i] = 0.0;
+                for (i = k + 2; i < dim; i++) {
+                    out[i * dim + j] = out[j * dim + i] = 0.0;
                 }
             }
             break;
         case 4: /* square pinhole */
             alpha = 0.5 * (radius - (double)floor_int(radius));
             for (i = 0; i < dim; i++) {
-                out[i*dim + dim-1] *= alpha;
-                out[i + (dim-1)*dim] *= alpha;
+                out[i * dim + dim - 1] *= alpha;
+                out[i + (dim - 1) * dim] *= alpha;
             }
             alpha = 0.5 + alpha;
-            for (i = 0; i < dim-1; i++) {
-                out[i*dim + dim-2] *= alpha;
-                out[i + (dim-2)*dim] *= alpha;
+            for (i = 0; i < dim - 1; i++) {
+                out[i * dim + dim - 2] *= alpha;
+                out[i + (dim - 2) * dim] *= alpha;
             }
             break;
         default:
@@ -627,7 +692,7 @@ int pinhole_kernel(int corners, double* out, Py_ssize_t dim, double radius)
     }
     for (i = 0; i < dim; i++)
         for (j = 1; j < dim; j++)
-            out[i*dim+j] *= 2.0;
+            out[i * dim + j] *= 2.0;
 
     return 0;
 }
@@ -635,40 +700,44 @@ int pinhole_kernel(int corners, double* out, Py_ssize_t dim, double radius)
 /*
 Apply rotational symmetry around the 1st dimension.
 */
-int zr2zxy(double* data, double* out, Py_ssize_t dimz, Py_ssize_t dimr)
+int zr2zxy(
+    double* data,
+    double* out,
+    Py_ssize_t dimz,
+    Py_ssize_t dimr)
 {
     Py_ssize_t x, y, z, x2, ri, index, indey, *_ri;
     double rf, *_rf, *dptr, *optr;
 
     /* floor integer and remainder float fraction of radius at xy */
-    _ri = (Py_ssize_t *)malloc((dimr*dimr)*sizeof(Py_ssize_t));
+    _ri = (Py_ssize_t *)malloc((dimr * dimr) * sizeof(Py_ssize_t));
     if (_ri == NULL)
         return -1;
-    _rf = (double *)malloc((dimr*dimr)*sizeof(double));
+    _rf = (double *)malloc((dimr * dimr) * sizeof(double));
     if (_rf == NULL) {
         free(_ri);
         return -1;
     }
 
     for (x = 0; x < dimr; x++) {
-        x2 = x*x;
+        x2 = x * x;
         indey = x;
-        index = x*dimr;
+        index = x * dimr;
         for (y = 0; y <= x; y++) {
-            rf = sqrt((double)(x2 + y*y));
+            rf = sqrt((double)(x2 + y * y));
             ri = floor_int(rf);
             _ri[index] = _ri[indey] = (dimr > ri) ? ri : -1;
-            _rf[index] = _rf[indey] = (dimr > ri+1) ? rf-(double)ri : 0.0;
+            _rf[index] = _rf[indey] = (dimr > ri + 1) ? rf - (double)ri : 0.0;
             index++;
             indey += dimr;
         }
     }
     for (z = 0; z < dimz; z++) {
-        dptr = &data[z*dimr];
-        optr = &out[z*dimr*dimr];
+        dptr = &data[z * dimr];
+        optr = &out[z * dimr * dimr];
         for (x = 0; x < dimr; x++) {
             indey = x;
-            index = x*dimr;
+            index = x * dimr;
             optr[index] = optr[indey] = dptr[x];
             for (y = 1; y <= x; y++) {
                 index++;
@@ -677,8 +746,10 @@ int zr2zxy(double* data, double* out, Py_ssize_t dimz, Py_ssize_t dimr)
                 if (ri >= 0) {
                     rf = _rf[index];
                     optr[index] = optr[indey] =
-                        rf ? dptr[ri]+rf*(dptr[ri+1]-dptr[ri]) : dptr[ri];
-                } else {
+                        rf ? dptr[ri] + rf *
+                        (dptr[ri + 1] - dptr[ri]) : dptr[ri];
+                }
+                else {
                     optr[index] = optr[indey] = 0.0;
                 }
             }
@@ -696,15 +767,20 @@ int zr2zxy(double* data, double* out, Py_ssize_t dimz, Py_ssize_t dimr)
 Numpy array converter for use with PyArg_Parse functions.
 Ensures that array is C contiguous and data type is double.
 */
-static int PyDoubleArray_Converter(PyObject *object, PyObject **address)
+static int PyDoubleArray_Converter(
+    PyObject *object,
+    PyObject **address)
 {
-    if (PyArray_Check(object) &&
+    if (
+        PyArray_Check(object) &&
         (PyArray_TYPE((PyArrayObject *)object) == NPY_DOUBLE) &&
-        (PyArray_FLAGS((PyArrayObject *)object) & NPY_ARRAY_C_CONTIGUOUS)) {
+        (PyArray_FLAGS((PyArrayObject *)object) & NPY_ARRAY_C_CONTIGUOUS))
+    {
         *address = object;
         Py_INCREF(object);
         return NPY_SUCCEED;
-    } else {
+    }
+    else {
         *address = PyArray_FROM_OTF(object, NPY_DOUBLE, NPY_ARRAY_ALIGNED);
         if (*address == NULL)
             return NPY_FAIL;
@@ -715,7 +791,9 @@ static int PyDoubleArray_Converter(PyObject *object, PyObject **address)
 /*
 Return ith element of a Python sequence as long, or 0 on failure.
 */
-long PySequence_GetInteger(PyObject *obj, Py_ssize_t i)
+static long py_sequence_get_long(
+    PyObject *obj,
+    Py_ssize_t i)
 {
     long value;
     PyObject *item = PySequence_GetItem(obj, i);
@@ -733,7 +811,9 @@ long PySequence_GetInteger(PyObject *obj, Py_ssize_t i)
 /*
 Return the ith element of a Python sequence as double, or 0.0 on failure.
 */
-double PySequence_GetDouble(PyObject *obj, Py_ssize_t i)
+static double py_sequence_get_double(
+    PyObject *obj,
+    Py_ssize_t i)
 {
     PyObject *item = NULL;
     double value;
@@ -751,7 +831,7 @@ double PySequence_GetDouble(PyObject *obj, Py_ssize_t i)
 /*
 Python wrapper function for the psf() function.
 */
-char py_psf_doc[] =
+static const char py_psf_doc[] =
     "Return the point spread function for unpolarized light in z,r space.";
 
 static PyObject* py_psf(
@@ -769,12 +849,25 @@ static PyObject* py_psf(
     double gamma = 1.0;
     int intsteps = 50;
 
-    static char *kwlist[] = {"type", "shape", "uvdim", "magnification",
-                             "sinalpha", "beta", "gamma", "intsteps", NULL};
+    static char *kwlist[] = { "type", "shape", "uvdim", "magnification",
+                              "sinalpha", "beta", "gamma", "intsteps", NULL };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iOOdd|ddi", kwlist,
-        &type, &pyshape, &pyuvdim, &mag, &sinalpha, &beta, &gamma, &intsteps))
-        goto _fail;
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "iOOdd|ddi",
+        kwlist,
+        &type,
+        &pyshape,
+        &pyuvdim,
+        &mag,
+        &sinalpha,
+        &beta,
+        &gamma,
+        &intsteps
+        ))
+        return NULL;
 
     Py_INCREF(pyshape);
     Py_INCREF(pyuvdim);
@@ -809,10 +902,12 @@ static PyObject* py_psf(
         goto _fail;
     }
 
-    shape[0] = PySequence_GetInteger(pyshape, 0);
-    shape[1] = PySequence_GetInteger(pyshape, 1);
-    uvdim[0] = PySequence_GetDouble(pyuvdim, 0);
-    uvdim[1] = PySequence_GetDouble(pyuvdim, 1);
+    shape[0] = py_sequence_get_long(pyshape, 0);
+    shape[1] = py_sequence_get_long(pyshape, 1);
+    uvdim[0] = py_sequence_get_double(pyuvdim, 0);
+    uvdim[1] = py_sequence_get_double(pyuvdim, 1);
+    if (PyErr_Occurred())
+        goto _fail;
 
     out = (PyArrayObject*)PyArray_ZEROS(2, shape, NPY_DOUBLE, 0);
     if (out == NULL) {
@@ -821,8 +916,17 @@ static PyObject* py_psf(
     }
 
     Py_BEGIN_ALLOW_THREADS
-    error = psf(type, (double *)PyArray_DATA(out), shape, uvdim,
-                mag, sinalpha, beta, gamma, intsteps);
+        error = psf(
+        type,
+        (double *)PyArray_DATA(out),
+        shape,
+        uvdim,
+        mag,
+        sinalpha,
+        beta,
+        gamma,
+        intsteps
+        );
     Py_END_ALLOW_THREADS
 
     if (error != 0) {
@@ -834,17 +938,17 @@ static PyObject* py_psf(
     Py_DECREF(pyuvdim);
     return PyArray_Return(out);
 
-  _fail:
+_fail:
     Py_XDECREF(pyshape);
     Py_XDECREF(pyuvdim);
-    Py_XDECREF(out);
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper function for the obsvol() function.
 */
-char py_obsvol_doc[] =
+static const char py_obsvol_doc[] =
     "Return the observation volume for one photon excitation in z,r space.";
 
 static PyObject* py_obsvol(
@@ -858,99 +962,129 @@ static PyObject* py_obsvol(
     PyArrayObject *out = NULL;
     int error;
 
-    static char *kwlist[] = {"ex_psf", "em_psf", "detector", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&O&|O&", kwlist,
-        PyDoubleArray_Converter, &ex_psf,
-        PyDoubleArray_Converter, &em_psf,
-        PyDoubleArray_Converter, &detector))
+    static char *kwlist[] = { "ex_psf", "em_psf", "detector", NULL };
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "O&O&|O&",
+        kwlist,
+        PyDoubleArray_Converter,
+        &ex_psf,
+        PyDoubleArray_Converter,
+        &em_psf,
+        PyDoubleArray_Converter,
+        &detector
+        ))
         goto _fail;
 
     if (PyArray_NDIM(ex_psf) == 3 || PyArray_NDIM(em_psf) == 3) {
-        PyErr_Format(PyExc_NotImplementedError,
-            "three dimensional PSF are not supported");
+        PyErr_Format(
+            PyExc_NotImplementedError,
+            "three dimensional PSF are not supported"
+        );
         goto _fail;
     }
 
     if (PyArray_NDIM(ex_psf) != 2 || PyArray_NDIM(em_psf) != 2) {
-        PyErr_Format(PyExc_ValueError,
-            "not all PSF arrays are 2 dimensional");
+        PyErr_Format(
+            PyExc_ValueError,
+            "not all PSF arrays are 2 dimensional"
+        );
         goto _fail;
     }
 
-    if (PyArray_DIM(ex_psf, 0) != PyArray_DIM(em_psf, 0) ||
-        PyArray_DIM(ex_psf, 1) != PyArray_DIM(em_psf, 1)) {
+    if (
+        PyArray_DIM(ex_psf, 0) != PyArray_DIM(em_psf, 0) ||
+        PyArray_DIM(ex_psf, 1) != PyArray_DIM(em_psf, 1))
+    {
         PyErr_Format(PyExc_ValueError, "PSF arrays are not same size");
         goto _fail;
     }
 
-    if ((detector) && (PyArray_NDIM(detector)!= 2 ||
-        PyArray_DIM(detector, 0) != PyArray_DIM(detector, 1))) {
+    if (
+        (detector) && (PyArray_NDIM(detector) != 2 ||
+        PyArray_DIM(detector, 0) != PyArray_DIM(detector, 1)))
+    {
         PyErr_Format(PyExc_ValueError, "detector kernel is not square");
         goto _fail;
     }
 
-    out = (PyArrayObject*)PyArray_ZEROS(2, PyArray_DIMS(ex_psf),
-                                        NPY_DOUBLE, 0);
+    out = (PyArrayObject*)PyArray_ZEROS(
+        2,
+        PyArray_DIMS(ex_psf),
+        NPY_DOUBLE,
+        0
+    );
     if (out == NULL) {
         PyErr_Format(PyExc_MemoryError, "unable to allocate array");
         goto _fail;
     }
 
-    error = obsvol(
+    Py_BEGIN_ALLOW_THREADS
+        error = obsvol(
         PyArray_DIM(ex_psf, 0),
         PyArray_DIM(ex_psf, 1),
         detector ? PyArray_DIM(detector, 0) : 0,
         (double *)PyArray_DATA(out),
         (double *)PyArray_DATA(ex_psf),
         (double *)PyArray_DATA(em_psf),
-        detector ? (double *)PyArray_DATA(detector) : NULL);
+        detector ? (double *)PyArray_DATA(detector) : NULL
+        );
+    Py_END_ALLOW_THREADS
 
     if (error != 0) {
         PyErr_Format(PyExc_ValueError, "obsvol() function failed");
         goto _fail;
     }
 
-    Py_DECREF(ex_psf);
-    Py_DECREF(em_psf);
-    Py_XDECREF(detector);
+    Py_DECREF((PyObject *)ex_psf);
+    Py_DECREF((PyObject *)em_psf);
+    Py_XDECREF((PyObject *)detector);
     return PyArray_Return(out);
 
-  _fail:
-    Py_XDECREF(ex_psf);
-    Py_XDECREF(em_psf);
-    Py_XDECREF(detector);
-    Py_XDECREF(out);
+_fail:
+    Py_XDECREF((PyObject *)ex_psf);
+    Py_XDECREF((PyObject *)em_psf);
+    Py_XDECREF((PyObject *)detector);
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper function for accessing the Bessel lookup table.
 */
-char py_bessel_doc[] =
+static const char py_bessel_doc[] =
     "Return the lookup table for the Bessel function of orders 0, 1, 2.";
 
-static PyObject* py_bessel(PyObject *obj)
+static PyObject* py_bessel(
+    PyObject *obj)
 {
     PyArrayObject *out = NULL;
-    Py_ssize_t shape[] = {BESSEL_LEN, 3};
-    out = (PyArrayObject*)PyArray_SimpleNewFromData(2, shape,
-                                                    NPY_DOUBLE, bessel_lut);
+    Py_ssize_t shape[] = { BESSEL_LEN, 3 };
+    out = (PyArrayObject*)PyArray_SimpleNewFromData(
+        2,
+        shape,
+        NPY_DOUBLE,
+        bessel_lut
+    );
     if (out == NULL) {
         PyErr_Format(PyExc_MemoryError, "unable to allocate array");
         goto _fail;
     }
+    PyArray_CLEARFLAGS(out, NPY_ARRAY_WRITEABLE);
 
     return PyArray_Return(out);
 
-  _fail:
-    Py_XDECREF(out);
+_fail:
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper function for the zr2zxy() function.
 */
-char py_zr2zxy_doc[] =
+static const char py_zr2zxy_doc[] =
     "Return new array with rotational symmetry applied in 1st dimension.";
 
 static PyObject* py_zr2zxy(
@@ -964,21 +1098,31 @@ static PyObject* py_zr2zxy(
     int ndims;
     Py_ssize_t shape[3];
 
-    static char *kwlist[] = {"data", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&", kwlist,
-        PyDoubleArray_Converter, &data))
+    static char *kwlist[] = { "data", NULL };
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "O&",
+        kwlist,
+        PyDoubleArray_Converter,
+        &data
+        ))
         goto _fail;
 
     if ((PyArray_NDIM(data) != 1) && (PyArray_NDIM(data) != 2)) {
-        PyErr_Format(PyExc_ValueError,
-            "input array is not 1 or 2 dimensional");
+        PyErr_Format(
+            PyExc_ValueError,
+            "input array is not 1 or 2 dimensional"
+        );
         goto _fail;
     }
 
     if (PyArray_NDIM(data) == 1) {
         ndims = 2;
         shape[0] = shape[1] = PyArray_DIM(data, 0);
-    } else {
+    }
+    else {
         ndims = 3;
         shape[0] = PyArray_DIM(data, 0);
         shape[1] = shape[2] = PyArray_DIM(data, 1);
@@ -989,28 +1133,33 @@ static PyObject* py_zr2zxy(
         goto _fail;
     }
 
-    error = zr2zxy((double *)PyArray_DATA(data),
-                   (double *)PyArray_DATA(out),
-                   (ndims == 3) ? (int)shape[0] : 1, (int)shape[1]);
+    Py_BEGIN_ALLOW_THREADS
+        error = zr2zxy(
+        (double *)PyArray_DATA(data),
+        (double *)PyArray_DATA(out),
+        (ndims == 3) ? shape[0] : 1,
+        shape[1]
+        );
+    Py_END_ALLOW_THREADS
 
     if (error != 0) {
         PyErr_Format(PyExc_ValueError, "zr2zxy() function failed");
         goto _fail;
     }
 
-    Py_DECREF(data);
+    Py_DECREF((PyObject *)data);
     return PyArray_Return(out);
 
-  _fail:
-    Py_XDECREF(data);
-    Py_XDECREF(out);
+_fail:
+    Py_XDECREF((PyObject *)data);
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper for the pinhole_kernel() function.
 */
-char py_pinhole_kernel_doc[] =
+static const char py_pinhole_kernel_doc[] =
     "Return kernel for integrating over pinhole.";
 
 static PyObject* py_pinhole_kernel(
@@ -1025,14 +1174,24 @@ static PyObject* py_pinhole_kernel(
     double radius;
     Py_ssize_t shape[2];
 
-    static char *kwlist[] = {"radius", "corners", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "d|i", kwlist,
-        &radius, &corners))
+    static char *kwlist[] = { "radius", "corners", NULL };
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "d|i",
+        kwlist,
+        &radius,
+        &corners
+        ))
         goto _fail;
 
     if ((corners != 0) && (corners != 4)) {
-        PyErr_Format(PyExc_ValueError,
-            "pinhole shape not supported: %i", corners);
+        PyErr_Format(
+            PyExc_ValueError,
+            "pinhole shape not supported: %i",
+            corners
+        );
         goto _fail;
     }
 
@@ -1043,13 +1202,18 @@ static PyObject* py_pinhole_kernel(
     dim = ceil_int(radius) + 1;
     shape[0] = shape[1] = dim;
     out = (PyArrayObject*)PyArray_ZEROS(2, shape, NPY_DOUBLE, 0);
-    if (out == NULL)  {
+    if (out == NULL) {
         PyErr_Format(PyExc_MemoryError, "unable to allocate array");
         goto _fail;
     }
 
     Py_BEGIN_ALLOW_THREADS
-    error = pinhole_kernel(corners, (double *)PyArray_DATA(out), dim, radius);
+        error = pinhole_kernel(
+        corners,
+        (double *)PyArray_DATA(out),
+        dim,
+        radius
+        );
     Py_END_ALLOW_THREADS
 
     if (error != 0) {
@@ -1059,15 +1223,15 @@ static PyObject* py_pinhole_kernel(
 
     return PyArray_Return(out);
 
-  _fail:
-    Py_XDECREF(out);
+_fail:
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper for the gaussian2d() function.
 */
-char py_gaussian2d_doc[] =
+static const char py_gaussian2d_doc[] =
     "Return the 2D Gaussian in z,r space.";
 
 static PyObject* py_gaussian2d(
@@ -1081,35 +1245,48 @@ static PyObject* py_gaussian2d(
     Py_ssize_t shape[2];
     double sigma[2];
     int error;
-    static char *kwlist[] = {"shape", "sigma", NULL};
+    static char *kwlist[] = { "shape", "sigma", NULL };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist,
-        &pyshape, &pysigma))
-        goto _fail;
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "OO",
+        kwlist,
+        &pyshape,
+        &pysigma
+        ))
+        return NULL;
 
     Py_INCREF(pyshape);
     Py_INCREF(pysigma);
 
-    if (!(PySequence_Check(pyshape) && PySequence_Size(pyshape) == 2 &&
-          PySequence_Check(pysigma) && PySequence_Size(pysigma) == 2)) {
-        PyErr_Format(PyExc_ValueError,
-            "input parameters must be sequences of length 2");
+    if (
+        !(PySequence_Check(pyshape) && PySequence_Size(pyshape) == 2 &&
+        PySequence_Check(pysigma) && PySequence_Size(pysigma) == 2))
+    {
+        PyErr_Format(
+            PyExc_ValueError,
+            "input parameters must be sequences of length 2"
+        );
         goto _fail;
     }
 
-    shape[0] = PySequence_GetInteger(pyshape, 0);
-    shape[1] = PySequence_GetInteger(pyshape, 1);
+    shape[0] = py_sequence_get_long(pyshape, 0);
+    shape[1] = py_sequence_get_long(pyshape, 1);
+    sigma[0] = py_sequence_get_double(pysigma, 0);
+    sigma[1] = py_sequence_get_double(pysigma, 1);
+    if (PyErr_Occurred())
+        goto _fail;
+
     out = (PyArrayObject*)PyArray_ZEROS(2, shape, NPY_DOUBLE, 0);
     if (out == NULL) {
         PyErr_Format(PyExc_MemoryError, "unable to allocate array");
         goto _fail;
     }
 
-    sigma[0] = PySequence_GetDouble(pysigma, 0);
-    sigma[1] = PySequence_GetDouble(pysigma, 1);
-
     Py_BEGIN_ALLOW_THREADS
-    error = gaussian2d((double *)PyArray_DATA(out), &shape[0], &sigma[0]);
+        error = gaussian2d((double *)PyArray_DATA(out), &shape[0], &sigma[0]);
     Py_END_ALLOW_THREADS
 
     if (error != 0) {
@@ -1121,17 +1298,17 @@ static PyObject* py_gaussian2d(
     Py_DECREF(pysigma);
     return PyArray_Return(out);
 
-  _fail:
+_fail:
     Py_XDECREF(pyshape);
     Py_XDECREF(pysigma);
-    Py_XDECREF(out);
+    Py_XDECREF((PyObject *)out);
     return NULL;
 }
 
 /*
 Python wrapper for the gaussian_sigma() function.
 */
-char py_gaussian_sigma_doc[] =
+static const char py_gaussian_sigma_doc[] =
     "Return Gaussian sigma parameters for PSF approximation.";
 
 static PyObject* py_gaussian_sigma(
@@ -1147,12 +1324,24 @@ static PyObject* py_gaussian_sigma(
     double radius = 1.0;
     double lex, lem, num_aperture, refr_index, sigmaz, sigmar;
 
-    static char *kwlist[] = {"lex", "lem", "num_aperture", "refr_index",
-                             "pinhole_radius", "widefield", "paraxial", NULL};
+    static char *kwlist[] = { "lex", "lem", "num_aperture", "refr_index",
+                              "pinhole_radius", "widefield", "paraxial",
+                              NULL };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "dddd|dOO", kwlist,
-        &lex, &lem, &num_aperture, &refr_index, &radius,
-        &widefieldobj, &paraxialobj))
+    if (
+        !PyArg_ParseTupleAndKeywords(
+        args,
+        kwds,
+        "dddd|dOO",
+        kwlist,
+        &lex,
+        &lem,
+        &num_aperture,
+        &refr_index,
+        &radius,
+        &widefieldobj,
+        &paraxialobj
+        ))
         return NULL;
 
     if (widefieldobj != NULL)
@@ -1161,8 +1350,17 @@ static PyObject* py_gaussian_sigma(
     if (paraxialobj != NULL)
         paraxial = PyObject_IsTrue(paraxialobj);
 
-    error = gaussian_sigma(&sigmaz, &sigmar, lex, lem, num_aperture,
-                           refr_index, radius, widefield, paraxial);
+    error = gaussian_sigma(
+        &sigmaz,
+        &sigmar,
+        lex,
+        lem,
+        num_aperture,
+        refr_index,
+        radius,
+        widefield,
+        paraxial
+    );
 
     if (error != 0) {
         PyErr_Format(PyExc_ValueError, "gaussian_sigma() function failed");
@@ -1171,7 +1369,7 @@ static PyObject* py_gaussian_sigma(
 
     return Py_BuildValue("(d,d)", sigmaz, sigmar);
 
-  _fail:
+_fail:
     return NULL;
 }
 
@@ -1179,67 +1377,70 @@ static PyObject* py_gaussian_sigma(
 /* Python module */
 
 static PyMethodDef module_methods[] = {
-    {"psf", (PyCFunction)py_psf,
-        METH_VARARGS|METH_KEYWORDS, py_psf_doc},
-    {"obsvol", (PyCFunction)py_obsvol,
-        METH_VARARGS|METH_KEYWORDS, py_obsvol_doc},
-    {"pinhole_kernel", (PyCFunction)py_pinhole_kernel,
-        METH_VARARGS|METH_KEYWORDS, py_pinhole_kernel_doc},
-    {"zr2zxy", (PyCFunction)py_zr2zxy,
-        METH_VARARGS|METH_KEYWORDS, py_zr2zxy_doc},
-    {"gaussian2d", (PyCFunction)py_gaussian2d,
-        METH_VARARGS|METH_KEYWORDS, py_gaussian2d_doc},
-    {"gaussian_sigma", (PyCFunction)py_gaussian_sigma,
-        METH_VARARGS|METH_KEYWORDS, py_gaussian_sigma_doc},
-    {"bessel_lut", (PyCFunction)py_bessel,
-        METH_NOARGS, py_bessel_doc},
-    {NULL, NULL, 0, NULL} /* Sentinel */
+    { "psf", (PyCFunction)py_psf,
+      METH_VARARGS | METH_KEYWORDS, py_psf_doc },
+    { "obsvol", (PyCFunction)py_obsvol,
+      METH_VARARGS | METH_KEYWORDS, py_obsvol_doc },
+    { "pinhole_kernel", (PyCFunction)py_pinhole_kernel,
+      METH_VARARGS | METH_KEYWORDS, py_pinhole_kernel_doc },
+    { "zr2zxy", (PyCFunction)py_zr2zxy,
+      METH_VARARGS | METH_KEYWORDS, py_zr2zxy_doc },
+    { "gaussian2d", (PyCFunction)py_gaussian2d,
+      METH_VARARGS | METH_KEYWORDS, py_gaussian2d_doc },
+    { "gaussian_sigma", (PyCFunction)py_gaussian_sigma,
+      METH_VARARGS | METH_KEYWORDS, py_gaussian_sigma_doc },
+    { "bessel_lut", (PyCFunction)py_bessel,
+      METH_NOARGS, py_bessel_doc },
+    { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
-struct module_state {
-    PyObject *error;
-};
-
-#define GETSTATE(m) ((struct module_state*)PyModule_GetState(m))
-
-static int module_traverse(PyObject *m, visitproc visit, void *arg) {
-    Py_VISIT(GETSTATE(m)->error);
+static int module_traverse(
+    PyObject *m,
+    visitproc visit,
+    void *arg)
+{
+    (void)m;
+    (void)visit;
+    (void)arg;
     return 0;
 }
 
-static int module_clear(PyObject *m) {
-    Py_CLEAR(GETSTATE(m)->error);
+static int module_clear(
+    PyObject *m)
+{
+    (void)m;
     return 0;
 }
 
-static int module_exec(PyObject *module) {
+static int module_exec(
+    PyObject *module)
+{
     if (bessel_init() != 0) {
         return -1;
     }
     if (_import_array() < 0) {
         return -1;
     }
-    PyObject *s = PyUnicode_FromString(_VERSION_);
-    if (!s) return -1;
-    PyObject *dict = PyModule_GetDict(module);
-    if (PyDict_SetItemString(dict, "__version__", s) < 0) {
-        Py_DECREF(s);
+    if (PyModule_AddStringConstant(module, "__version__", _VERSION_) < 0) {
         return -1;
     }
-    Py_DECREF(s);
     return 0;
 }
 
 static struct PyModuleDef_Slot module_slots[] = {
-    {Py_mod_exec, module_exec},
-    {0, NULL}
+    { Py_mod_exec, module_exec },
+    { Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED },
+#ifdef Py_MOD_GIL_NOT_USED
+    { Py_mod_gil, Py_MOD_GIL_NOT_USED },
+#endif
+    { 0, NULL }
 };
 
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "_psf",
     _DOC_,
-    sizeof(struct module_state),
+    0,
     module_methods,
     module_slots,
     module_traverse,
