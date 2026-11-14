@@ -19,7 +19,7 @@ jobs:
             windows_archs: ARM64
     steps:
       - uses: actions/checkout@v7
-      - uses: pypa/cibuildwheel@v4.2.0
+      - uses: pypa/cibuildwheel@v4.3.5
         env:
           # build ABI3 wheels with Python 3.12, and free-threaded wheels for Python >=3.14t
           CG_LIMITED_API: 1
