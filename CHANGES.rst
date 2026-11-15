@@ -1,5 +1,17 @@
+..
+  This file is updated by setup.py. Do not edit.
+
 Revisions
----------
+=========
+
+2026.11.15
+
+- Fix pixel size of pinhole kernel and Gaussian sigma (breaking).
+- Use emission wavelength for 8 AU pinhole cutoff.
+- Fix several bugs in C extension and Python module.
+- Fix byte-swapped array handling in C extension.
+- Improve validation of input parameters.
+- Use common array converters and helper functions in C extensions.
 
 2026.8.8
 
