@@ -106,8 +106,8 @@ def psf_example(
     psf.imshow(248, gauss.slice(i), sharex=ax, cmap=cmap)
 
     # plot cross sections
-    z = numpy.arange(0, gauss.dims.ou[0], gauss.dims.ou[0] / gauss.dims.px[0])
-    r = numpy.arange(0, gauss.dims.ou[1], gauss.dims.ou[1] / gauss.dims.px[1])
+    z = numpy.linspace(0, gauss.dims.ou[0], gauss.shape[0])
+    r = numpy.linspace(0, gauss.dims.ou[1], gauss.shape[1])
     zr_max = 20.0
     pyplot.figure()
     pyplot.subplot(211)
