@@ -38,7 +38,7 @@ The psf library is no longer actively developed.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.8.8
+:Version: 2026.11.15
 
 Quickstart
 ----------
@@ -59,13 +59,22 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.12.10, 3.13.15, 3.14.7, 3.15.0rc 64-bit
-- `Numpy <https://pypi.org/project/numpy>`_ 2.5.2
-- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.11.1
+- `CPython <https://www.python.org>`_ 3.12.10, 3.13.17, 3.14.10, 3.15.2 64-bit
+- `Numpy <https://pypi.org/project/numpy>`_ 2.5.4
+- `Matplotlib <https://pypi.org/project/matplotlib/>`_  3.11.2
   (optional for plotting)
 
 Revisions
 ---------
+
+2026.11.15
+
+- Fix pixel size of pinhole kernel and Gaussian sigma (breaking).
+- Use emission wavelength for 8 AU pinhole cutoff.
+- Fix several bugs in C extension and Python module.
+- Fix byte-swapped array handling in C extension.
+- Improve validation of input parameters.
+- Use common array converters and helper functions in C extensions.
 
 2026.8.8
 
@@ -74,28 +83,6 @@ Revisions
 - Support Python 3.15.
 
 2026.1.18
-
-- Use multi-phase initialization.
-- Improve code quality.
-
-2025.8.1
-
-- Drop support for Python 3.10, support Python 3.14.
-
-2025.1.1
-
-- Improve type hints.
-- Drop support for Python 3.9, support Python 3.13.
-
-2024.5.24
-
-- Fix docstring examples not correctly rendered on GitHub.
-
-2024.4.24
-
-- Support NumPy 2.
-
-2024.1.6
 
 - …
 
@@ -152,10 +139,10 @@ PSF
  half cone angle: 64.19 deg
  magnification: 1.00
  underfilling: 1.00
- pinhole radius: 0.550 um, 8.498 ou, 1.1086 au, 4.40 px
+ pinhole radius: 0.550 um, 8.498 ou, 1.1086 au, 4.26 px
  computing time: ... ms
 >>> obsvol[0, :3]
-array([1.     , 0.51071, 0.04397])
+array([1.     , 0.51026, 0.04382])
 >>> # write the image plane to file
 >>> obsvol.slice(0).tofile('_test_slice.bin')
 >>> # write a full 3D PSF volume to file
@@ -167,7 +154,7 @@ Refer to `psf_example.py` in the source distribution for more examples.
 
 from __future__ import annotations
 
-__version__ = '2026.8.8'
+__version__ = '2026.11.15'
 
 __all__ = [
     'ANISOTROPIC',
@@ -336,6 +323,8 @@ class PSF:
     dims: Dimensions[tuple[float, float]]
     """Dimensions of data array
     in px (pixel), um (micrometers), ou (optical units), and au (airy units).
+    The first and last samples lie at 0 and `dims`, so `px` is `shape - 1`,
+    the number of sample intervals.
     """
 
     ex_wavelen: float
@@ -397,7 +386,14 @@ class PSF:
         self.psftype = psftype
         self.name = str(name or enumstr(psftype))
         self.shape = int(shape[0]), int(shape[1])
-        self.dims = Dimensions(px=shape, um=(float(dims[0]), float(dims[1])))
+        if self.shape[0] < 2 or self.shape[1] < 2:
+            msg = f'shape {self.shape} is smaller than 2'
+            raise ValueError(msg)
+        # first and last samples lie at 0 and dims
+        self.dims = Dimensions(
+            px=(self.shape[0] - 1, self.shape[1] - 1),
+            um=(float(dims[0]), float(dims[1])),
+        )
 
         self.ex_wavelen = (
             ex_wavelen / 1e3 if not math.isnan(ex_wavelen) else math.nan
@@ -418,7 +414,12 @@ class PSF:
             msg = 'emission wavelength not specified'
             raise ValueError(msg)
 
-        if not (psftype & EMISSION) and math.isnan(ex_wavelen):
+        if (
+            not (psftype & EMISSION)
+            and psftype != GAUSSIAN | WIDEFIELD
+            and psftype != GAUSSIAN | WIDEFIELD | PARAXIAL
+            and math.isnan(ex_wavelen)
+        ):
             msg = 'excitation wavelength not specified'
             raise ValueError(msg)
 
@@ -484,7 +485,7 @@ class PSF:
             elif psftype & CONFOCAL:
                 assert self.pinhole is not None
                 radius = self.pinhole.radius.um
-                if radius > 9.76 * self.ex_wavelen / self.num_aperture:
+                if radius > 9.76 * self.em_wavelen / self.num_aperture:
                     # use widefield approximation for pinholes > 8 AU
                     widefield = True
                     lex = lem = self.ex_wavelen
@@ -506,7 +507,7 @@ class PSF:
                 widefield,
                 paraxial,
             )
-            self.data = _psf.gaussian2d(self.dims.px, self.sigma.px)
+            self.data = _psf.gaussian2d(self.shape, self.sigma.px)
 
         elif psftype & ISOTROPIC:
             if psftype & EXCITATION or psftype & TWOPHOTON:
@@ -544,6 +545,8 @@ class PSF:
                 if not (
                     self.expsf is not None
                     and self.expsf.psftype == ISOTROPIC | EXCITATION
+                    and self.expsf.ex_wavelen == self.ex_wavelen
+                    and self.expsf.underfilling == self.underfilling
                 ):
                     threads.append(
                         (
@@ -564,6 +567,8 @@ class PSF:
                 if not (
                     self.empsf is not None
                     and self.empsf.psftype == ISOTROPIC | EMISSION
+                    and self.empsf.em_wavelen == self.em_wavelen
+                    and self.empsf.magnification == self.magnification
                 ):
                     threads.append(
                         (
@@ -600,7 +605,7 @@ class PSF:
                 if psftype & WIDEFIELD or (
                     self.pinhole is not None
                     and self.pinhole.radius.um
-                    > 9.76 * self.ex_wavelen / self.num_aperture
+                    > 9.76 * self.em_wavelen / self.num_aperture
                 ):
                     # use widefield approximation for pinholes > 8 AU
                     self.data = _psf.obsvol(self.expsf.data, self.empsf.data)
@@ -612,6 +617,9 @@ class PSF:
 
         if psftype & TWOPHOTON:
             self.data *= self.data
+            if self.sigma is not None:
+                sz, sr = self.sigma.um
+                self.sigma.um = (sz / math.sqrt(2.0), sr / math.sqrt(2.0))
         self.time = float(clock() - start) * 1e3
 
     def __getitem__(self, key: Any, /) -> NDArray[numpy.float64]:
@@ -620,7 +628,7 @@ class PSF:
 
     def __str__(self) -> str:
         s = [self.__class__.__name__, self.name]
-        s.append(f'shape: ({self.dims.px[0]}, {self.dims.px[1]}) pixel')
+        s.append(f'shape: ({self.shape[0]}, {self.shape[1]}) pixel')
         dims = self.dims.format(['um', 'ou', 'au'], ['%.2f', '%.2f', '%.2f'])
         s.append(f'dimensions: {dims}')
         if not math.isnan(self.ex_wavelen):
@@ -680,7 +688,10 @@ class PSF:
         """Log-plot PSF image using matplotlib.pyplot. Return plot axis."""
         title = kwargs.get('title', self.name)
         aspect = (
-            self.shape[1] / self.shape[0] * self.dims.um[0] / self.dims.um[1]
+            (self.shape[1] - 1)
+            / (self.shape[0] - 1)
+            * self.dims.um[0]
+            / self.dims.um[1]
         )
         kwargs.update({'title': title, 'aspect': aspect})
         return imshow(subplot, self.data, **kwargs)
@@ -829,7 +840,10 @@ class Dimensions(UserDict[str, DimensionT]):
     def __getattr__(self, unit: str, /) -> DimensionT:
         if unit == 'data':
             raise AttributeError
-        return self.data[unit]
+        try:
+            return self.data[unit]
+        except KeyError as exc:
+            raise AttributeError(unit) from exc
 
     def __setattr__(self, unit: str, value: DimensionT, /) -> None:
         """Add dimension or rescale all dimensions to new value."""
